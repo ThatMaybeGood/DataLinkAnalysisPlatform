@@ -1,0 +1,48 @@
+/* src/style.css */
+.main-container {
+  height: 100vh;
+  width: 100vw;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.content-wrapper {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+.chart-container {
+  flex: 1;
+  position: relative;
+  background-color: #f0f2f5;
+  height: 100%;
+}
+
+.right-panel {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  background: #fff;
+  box-shadow: -2px 0 12px rgba(0,0,0,0.1);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-left: 1px solid #e8e8e8;
+}
+
+.component-card {
+  cursor: pointer;
+  margin-bottom: 10px;
+  transition: all 0.2s;
+  border: 1px solid #f0f0f0;
+}
+
+.component-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+  border-color: #1890ff;
+}

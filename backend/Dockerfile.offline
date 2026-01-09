@@ -1,0 +1,42 @@
+# 离线模式专用Dockerfile
+FROM openjdk:11-jre-slim
+
+# 维护者信息
+LABEL maintainer="workflow-platform@example.com"
+LABEL version="1.0.0"
+LABEL description="Workflow Platform Offline Mode"
+
+# 设置时区
+ENV TZ=Asia/Shanghai
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+# 创建数据目录
+RUN mkdir -p /app && mkdir -p /app/data && mkdir -p /app/data/workflows && mkdir -p /app/data/backups
+RUN mkdir -p /app/logs && mkdir -p /app/templates && mkdir -p /app/exports
+WORKDIR /app
+
+# 添加非root用户
+RUN groupadd -r workflow && useradd -r -g workflow workflow
+RUN chown -R workflow:workflow /app
+USER workflow
+
+# 复制应用文件
+COPY --chown=workflow:workflow target/workflow-platform-offline.jar app.jar
+COPY --chown=workflow:workflow src/main/resources/application.yml ./
+COPY --chown=workflow:workflow src/main/resources/application-offline.yml ./
+
+# 复制示例模板（可选）
+COPY --chown=workflow:workflow src/main/resources/templates/ /app/templates/
+
+# 健康检查（简化版）
+HEALTHCHECK --interval=60s --timeout=3s --start-period=90s --retries=2 \
+  CMD curl -f http://localhost:8080/api/health || exit 1
+
+# 暴露端口
+EXPOSE 8080
+
+# JVM参数（针对离线模式优化）
+ENV JAVA_OPTS="-server -Xms256m -Xmx512m -XX:+UseSerialGC -XX:MaxRAMPercentage=75.0"
+
+# 启动命令（强制离线模式）
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -Djava.security.egd=file:/dev/./urandom -Dapp.mode=offline -jar app.jar"]

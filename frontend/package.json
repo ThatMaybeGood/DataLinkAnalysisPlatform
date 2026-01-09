@@ -1,0 +1,75 @@
+{
+  "name": "workflow-platform-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "@ant-design/charts": "^1.4.3",
+    "@ant-design/icons": "^5.2.6",
+    "@antv/g6": "^4.8.9",
+    "@antv/x6": "^2.13.3",
+    "@antv/x6-react-components": "^2.1.5",
+    "@antv/x6-react-shape": "^2.1.5",
+    "antd": "^5.8.6",
+    "axios": "^1.4.0",
+    "jsondiffpatch": "^0.4.1",
+    "monaco-editor": "^0.41.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-json-view": "^1.21.3",
+    "react-monaco-editor": "^0.52.0",
+    "react-router-dom": "^6.14.2",
+    "zustand": "^4.4.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.15",
+    "@types/react-dom": "^18.2.7",
+    "typescript": "^5.1.6",
+    "web-vitals": "^3.3.1",
+    "react-scripts": "5.0.1",
+    "craco": "^7.1.0",
+    "@craco/craco": "^7.1.0",
+    "craco-antd": "^2.0.0",
+    "less": "^4.1.3",
+    "less-loader": "^11.1.0"
+  },
+  "scripts": {
+    "start": "craco start",
+    "start:online": "REACT_APP_MODE=online craco start",
+    "start:offline": "REACT_APP_MODE=offline craco start",
+    "build": "craco build",
+    "build:online": "REACT_APP_MODE=online craco build",
+    "build:offline": "REACT_APP_MODE=offline craco build",
+    "test": "craco test",
+    "eject": "react-scripts eject",
+    "lint": "eslint src --ext .js,.jsx,.ts,.tsx",
+    "lint:fix": "eslint src --ext .js,.jsx,.ts,.tsx --fix",
+    "format": "prettier --write src/**/*.{js,jsx,ts,tsx,json,css,less}",
+    "preview": "serve -s build -l 3000",
+    "preview:online": "REACT_APP_MODE=online serve -s build -l 3000",
+    "preview:offline": "REACT_APP_MODE=offline serve -s build -l 3000"
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app",
+      "react-app/jest"
+    ]
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "proxy": "http://localhost:8080",
+  "homepage": ".",
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=8.0.0"
+  }
+}

@@ -1,0 +1,9 @@
+# backend/src/main/resources/application.yml
+spring:
+  profiles:
+    active: @activatedProperties@  # 通过Maven profile激活
+  application:
+    name: workflow-platform
+
+app:
+  mode: online  # 默认在线模式
