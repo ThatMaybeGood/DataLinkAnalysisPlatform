@@ -1,20 +1,153 @@
-# backend/src/main/resources/application-offline.yml
+# ===================================================================
+# 离线模式配置
+# ===================================================================
+
+# 激活离线模式
+mode: offline
+
 spring:
-  config:
-    activate:
-      on-profile: offline
+  # 数据源配置（离线模式使用嵌入式数据库）
   datasource:
-    url: jdbc:h2:file:./data/offline/offline_db;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
-    username: sa
-    password:
     driver-class-name: org.h2.Driver
+    url: ${OFFLINE_DB_URL:jdbc:h2:file:./data/offline/offline_db;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;MODE=MySQL}
+    username: ${OFFLINE_DB_USERNAME:sa}
+    password: ${OFFLINE_DB_PASSWORD:}
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 1
+
+  # JPA配置
   jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
     hibernate:
       ddl-auto: update
-    database-platform: org.hibernate.dialect.H2Dialect
+    show-sql: ${DEBUG:true}
+    properties:
+      hibernate:
+        format_sql: true
 
-app:
-  mode: offline
-  storage:
-    file:
-      path: ./data/workflows
+  # 缓存配置（本地缓存）
+  cache:
+    type: caffeine
+    caffeine:
+      spec: maximumSize=500,expireAfterWrite=1800s
+
+  # 禁用消息队列
+  rabbitmq:
+    enabled: false
+
+# 离线模式特有配置
+workflow:
+  platform:
+    # 同步配置
+    offline:
+      sync:
+        # 队列配置
+        queue-capacity: 1000
+        thread-pool-size: 5
+        batch-size: 50
+
+        # 重试配置
+        max-retries: 3
+        retry-delay: 5000
+
+        # 超时配置
+        default-timeout: 30000
+        batch-timeout: 180000
+
+        # 冲突解决配置
+        conflict-resolution: timestamp  # timestamp, version, merge, manual
+        max-conflict-retries: 3
+        enable-auto-resolution: true
+
+        # 增量同步配置
+        enable-delta-sync: true
+        delta-check-interval: 60000  # 1分钟
+        max-delta-size: 104857600    # 100MB
+
+        # 监控配置
+        enable-monitoring: true
+        stats-history-size: 1000
+        cleanup-old-records-days: 30
+    mode: offline
+
+    # 文件存储配置
+    file-storage:
+      enabled: true
+      base-path: ${OFFLINE_STORAGE_PATH:./data/offline}
+      workflows-path: ${OFFLINE_WORKFLOWS_PATH:workflows}
+      nodes-path: ${OFFLINE_NODES_PATH:nodes}
+      rules-path: ${OFFLINE_RULES_PATH:rules}
+      exports-path: ${OFFLINE_EXPORTS_PATH:exports}
+      backups-path: ${OFFLINE_BACKUPS_PATH:backups}
+
+      # 文件格式
+      format: json
+      compression:
+        enabled: true
+        algorithm: gzip
+      encryption:
+        enabled: ${OFFLINE_ENCRYPTION:true}
+        algorithm: AES
+        key: ${OFFLINE_ENCRYPTION_KEY:workflow-offline-secret}
+
+    # 离线同步配置
+    sync:
+      enabled: true
+      mode: manual  # manual/auto/scheduled
+      schedule: "0 */5 * * * ?"  # 每5分钟
+      conflict-resolution: timestamp  # timestamp/version/manual
+      batch-size: 50
+      max-retries: 3
+      retry-delay: 5000
+
+    # 本地数据库
+    local-database:
+      type: h2
+      path: ./data/offline/local.db
+      cleanup-on-exit: false
+      backup-on-close: true
+
+    # 数据验证
+    data-validation:
+      on-load: true
+      on-save: true
+      integrity-check: true
+
+    # 性能优化
+    performance:
+      file-indexing: true
+      memory-cache: true
+      lazy-loading: true
+
+    # 容量限制
+    limits:
+      max-file-size: 52428800  # 50MB
+      max-total-size: 1073741824  # 1GB
+      max-workflows: 1000
+      max-nodes: 10000
+
+    # 备份配置
+    backup:
+      enabled: true
+      auto-backup: true
+      backup-on-save: true
+      max-backups: 10
+      retention-days: 7
+
+# H2控制台（开发环境）
+h2:
+  console:
+    enabled: ${DEBUG:true}
+    path: /h2-console
+    settings:
+      trace: false
+      web-allow-others: false
+
+# 禁用不需要的组件
+management:
+  endpoints:
+    web:
+      exposure:
+        exclude: prometheus,metrics
+

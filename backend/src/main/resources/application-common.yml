@@ -1,0 +1,108 @@
+#公共配置
+
+# ===================================================================
+# 公共配置 - 在线和离线模式都需要的配置
+# ===================================================================
+
+spring:
+  # 消息队列配置
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+    virtual-host: /
+
+  # Redis配置
+  redis:
+    host: ${REDIS_HOST:localhost}
+    port: ${REDIS_PORT:6379}
+    password: ${REDIS_PASSWORD:}
+    database: 0
+    timeout: 5000
+    lettuce:
+      pool:
+        max-active: 20
+        max-idle: 10
+        min-idle: 5
+
+  # 邮件配置
+  mail:
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+  # 任务调度
+  task:
+    scheduling:
+      pool:
+        size: 10
+    execution:
+      pool:
+        core-size: 10
+        max-size: 20
+        queue-capacity: 100
+
+# 工作流平台公共配置
+workflow:
+  platform:
+    # 通用配置
+    common:
+      default-timezone: Asia/Shanghai
+      default-language: zh-CN
+      date-format: yyyy-MM-dd HH:mm:ss
+      page-size: 20
+      max-page-size: 100
+
+    # 验证配置
+    validation:
+      enabled: true
+      strict-mode: false
+      max-depth: 10
+      max-iterations: 1000
+
+    # 缓存配置
+    cache:
+      enabled: true
+      ttl: 3600
+      size: 1000
+
+    # 模板配置
+    templates:
+      workflow: classpath:templates/workflow-template.json
+      node: classpath:templates/node-template.json
+      validation: classpath:templates/validation-template.json
+
+    # 性能监控
+    monitor:
+      enabled: true
+      collect-interval: 60000  # 1分钟
+      slow-query-threshold: 1000  # 1秒
+      max-log-size: 10000
+
+# 第三方服务配置
+external:
+  # API限流配置
+  rate-limit:
+    enabled: true
+    requests-per-second: 10
+    burst-capacity: 20
+
+  # 重试配置
+  retry:
+    max-attempts: 3
+    backoff-delay: 1000
+    max-delay: 10000
+
+  # 超时配置
+  timeout:
+    connect: 5000
+    read: 30000
+    write: 30000

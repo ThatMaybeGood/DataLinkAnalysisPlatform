@@ -1,9 +1,186 @@
-# backend/src/main/resources/application.yml
-spring:
-  profiles:
-    active: @activatedProperties@  # 通过Maven profile激活
-  application:
-    name: workflow-platform
+# ===================================================================
+# Workflow Visualization Platform - 主配置文件
+# ===================================================================
 
+# 应用基础配置
 app:
-  mode: online  # 默认在线模式
+  name: workflow-platform
+  version: 1.0.0
+  description: 工作流可视化平台
+  mode: ${APP_MODE:online}  # 在线/离线模式，通过环境变量控制
+
+# 服务器配置
+server:
+  port: ${SERVER_PORT:8080}
+  servlet:
+    context-path: /api
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
+  compression:
+    enabled: true
+    mime-types: text/html,text/xml,text/plain,text/css,text/javascript,application/javascript,application/json
+    min-response-size: 2048
+
+# Spring配置
+spring:
+  # 配置文件激活
+  profiles:
+    active: ${APP_MODE:online}
+
+  # 数据源配置（在线模式需要）
+  datasource:
+    driver-class-name: ${DB_DRIVER:com.mysql.cj.jdbc.Driver}
+    url: ${DB_URL:jdbc:mysql://localhost:3306/workflow_db?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:password}
+    hikari:
+      connection-timeout: 30000
+      maximum-pool-size: 20
+      minimum-idle: 5
+
+  # JPA配置
+  jpa:
+    database-platform: org.hibernate.dialect.MySQL8Dialect
+    show-sql: ${DEBUG:false}
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+        use_sql_comments: true
+
+  # 文件上传配置
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 100MB
+
+  # Jackson配置
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: Asia/Shanghai
+    serialization:
+      write-dates-as-timestamps: false
+      indent-output: ${DEBUG:false}
+
+  # 缓存配置
+  cache:
+    type: caffeine
+    caffeine:
+      spec: maximumSize=1000,expireAfterWrite=3600s
+
+# 应用配置
+workflow:
+  platform:
+    coordination:
+      # 心跳配置
+      heartbeat:
+        interval: 30000  # 心跳间隔(ms)
+        timeout: 90000   # 心跳超时(ms)
+        max-missed: 3    # 最大错过次数
+        enable: true     # 是否启用
+
+      # 模式一致性配置
+      mode-consistency:
+        check-interval: 30000      # 检查间隔(ms)
+        max-inconsistency-count: 3 # 最大不一致计数
+        auto-recover: true         # 自动恢复
+        alert-threshold: 0.8       # 告警阈值
+
+      # WebSocket配置
+      websocket:
+        enabled: true              # 是否启用
+        ping-interval: 30000       # ping间隔(ms)
+        max-reconnect-attempts: 5  # 最大重连尝试次数
+        reconnect-delay: 5000      # 重连延迟(ms)
+
+      # 状态同步配置
+      state-sync:
+        enabled: true              # 是否启用
+        sync-interval: 60000       # 同步间隔(ms)
+        broadcast-interval: 300000 # 广播间隔(ms)
+        max-sync-size: 1048576     # 最大同步大小(bytes)
+
+
+
+    # 文件存储配置
+    file-storage:
+      base-path: ${FILE_STORAGE_PATH:./data}
+      offline-path: ${OFFLINE_PATH:./data/offline}
+      online-path: ${ONLINE_PATH:./data/online}
+      export-path: ${EXPORT_PATH:./data/exports}
+      backup-path: ${BACKUP_PATH:./data/backups}
+      max-file-size: 104857600  # 100MB
+
+    # 工作流配置
+    workflow:
+      max-nodes: 100
+      max-execution-history: 1000
+      default-timeout: 30000
+      enable-versioning: true
+
+    # 离线模式配置
+    offline:
+      auto-sync: true
+      sync-interval: 300000  # 5分钟
+      max-conflict-retries: 3
+      encryption-enabled: true
+      compression-enabled: true
+
+    # 安全配置
+    security:
+      jwt:
+        secret: ${JWT_SECRET:workflow-platform-secret-key}
+        expiration: 86400000  # 24小时
+      cors:
+        allowed-origins: ${ALLOWED_ORIGINS:http://localhost:3000}
+        allowed-methods: GET,POST,PUT,DELETE,OPTIONS
+        allowed-headers: "*"
+        allow-credentials: true
+
+    # 日志配置
+    logging:
+      level:
+        com.workflow.platform: DEBUG
+      file:
+        path: ./logs
+        name: workflow-platform.log
+        max-size: 100MB
+        max-history: 30
+
+# MyBatis配置（如果使用）
+mybatis:
+  mapper-locations: classpath:mapper/**/*.xml
+  type-aliases-package: com.workflow.platform.model.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+# Swagger配置
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+    disable-swagger-default-url: true
+    display-request-duration: true
+
+# 监控配置
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+    tags:
+      application: ${spring.application.name}

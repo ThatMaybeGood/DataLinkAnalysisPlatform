@@ -1,6 +1,8 @@
 package com.workflow.platform.repository;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.workflow.platform.annotation.RequireMode;
+import com.workflow.platform.model.dto.WorkflowDTO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -19,12 +21,13 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * 离线工作流仓库 - 基于文件系统的存储
+ * 离线工作流仓库（基于文件系统）
+ * 离线模式下，工作流数据存储在本地JSON文件中
  */
 @Repository
 @RequiredArgsConstructor
 @Slf4j
-@ConditionalOnMode("offline")
+@RequireMode("offline")
 public class OfflineWorkflowRepository {
 
     @Value("${app.offline.storage.file.path:./data/workflows}")
@@ -33,42 +36,39 @@ public class OfflineWorkflowRepository {
     private final ObjectMapper objectMapper;
 
     /**
-     * 保存工作流
+     * 保存工作流到文件系统
+     * @param workflow 工作流DTO
+     * @return 保存后的工作流
+     * @throws IOException 文件操作异常
      */
-    public WorkflowEntity save(WorkflowEntity entity) {
-        try {
-            // 生成ID（如果没有）
-            if (entity.getId() == null) {
-                entity.setId(generateId());
-            }
-
-            // 设置时间戳
-            if (entity.getCreatedAt() == null) {
-                entity.setCreatedAt(LocalDateTime.now());
-            }
-            entity.setUpdatedAt(LocalDateTime.now());
-
-            // 保存到文件
-            saveToFile(entity);
-
-            return entity;
-        } catch (IOException e) {
-            throw new RuntimeException("保存工作流失败", e);
+    public WorkflowDTO save(WorkflowDTO workflow) throws IOException {
+        // 生成ID（如果为空）
+        if (workflow.getId() == null || workflow.getId().isEmpty()) {
+            workflow.setId(generateId());
         }
+
+        // 设置时间戳
+        if (workflow.getCreatedAt() == null) {
+            workflow.setCreatedAt(LocalDateTime.now());
+        }
+        workflow.setUpdatedAt(LocalDateTime.now());
+
+        // 保存到文件
+        saveToFile(workflow);
+
+        log.info("工作流保存到文件: {}/{}", storagePath, workflow.getId() + ".json");
+        return workflow;
     }
 
     /**
      * 根据ID查找工作流
+     * @param id 工作流ID
+     * @return Optional包装的工作流DTO
      */
-    public Optional<WorkflowEntity> findById(String id) {
+    public Optional<WorkflowDTO> findById(String id) {
         try {
-            Path filePath = getFilePath(id);
-            if (!Files.exists(filePath)) {
-                return Optional.empty();
-            }
-
-            WorkflowEntity entity = objectMapper.readValue(filePath.toFile(), WorkflowEntity.class);
-            return Optional.of(entity);
+            WorkflowDTO workflow = loadFromFile(id);
+            return Optional.ofNullable(workflow);
         } catch (IOException e) {
             log.error("读取工作流文件失败: {}", id, e);
             return Optional.empty();
@@ -76,45 +76,57 @@ public class OfflineWorkflowRepository {
     }
 
     /**
-     * 查找所有工作流
+     * 根据别名查找工作流
+     * @param alias 别名
+     * @return Optional包装的工作流DTO
      */
-    public List<WorkflowEntity> findAll() {
-        List<WorkflowEntity> workflows = new ArrayList<>();
+    public Optional<WorkflowDTO> findByAlias(String alias) {
+        return findAll().stream()
+                .filter(workflow -> alias.equals(workflow.getAlias()))
+                .findFirst();
+    }
 
-        try {
-            Path dirPath = Paths.get(storagePath);
-            if (!Files.exists(dirPath)) {
-                return workflows;
+    /**
+     * 查找所有工作流
+     * @return 工作流列表
+     */
+    public List<WorkflowDTO> findAll() {
+        List<WorkflowDTO> workflows = new ArrayList<>();
+        File dir = new File(storagePath);
+
+        if (dir.exists() && dir.isDirectory()) {
+            File[] files = dir.listFiles((d, name) -> name.endsWith(".json"));
+            if (files != null) {
+                for (File file : files) {
+                    try {
+                        WorkflowDTO workflow = objectMapper.readValue(file, WorkflowDTO.class);
+                        workflows.add(workflow);
+                    } catch (IOException e) {
+                        log.error("读取工作流文件失败: {}", file.getName(), e);
+                    }
+                }
             }
-
-            Files.list(dirPath)
-                    .filter(path -> path.toString().endsWith(".json"))
-                    .forEach(path -> {
-                        try {
-                            WorkflowEntity entity = objectMapper.readValue(path.toFile(), WorkflowEntity.class);
-                            workflows.add(entity);
-                        } catch (IOException e) {
-                            log.error("读取工作流文件失败: {}", path, e);
-                        }
-                    });
-        } catch (IOException e) {
-            log.error("遍历工作流目录失败", e);
         }
+
+        // 按更新时间倒序排序
+        workflows.sort((w1, w2) -> w2.getUpdatedAt().compareTo(w1.getUpdatedAt()));
 
         return workflows;
     }
 
     /**
      * 分页查询工作流
+     * @param pageable 分页参数
+     * @return 分页的工作流列表
      */
-    public Page<WorkflowEntity> findAll(Pageable pageable) {
-        List<WorkflowEntity> allWorkflows = findAll();
+    public Page<WorkflowDTO> findAll(Pageable pageable) {
+        List<WorkflowDTO> allWorkflows = findAll();
 
         // 排序
         if (pageable.getSort().isSorted()) {
             allWorkflows.sort((w1, w2) -> {
-                // 实现排序逻辑
-                return w1.getUpdatedAt().compareTo(w2.getUpdatedAt());
+                // 这里简化处理，实际应该根据pageable.getSort()进行排序
+                return w2.getUpdatedAt().compareTo(w1.getUpdatedAt());
             });
         }
 
@@ -122,41 +134,37 @@ public class OfflineWorkflowRepository {
         int start = (int) pageable.getOffset();
         int end = Math.min((start + pageable.getPageSize()), allWorkflows.size());
 
-        List<WorkflowEntity> pageContent = allWorkflows.subList(start, end);
+        List<WorkflowDTO> pageContent = allWorkflows.subList(start, end);
 
         return new PageImpl<>(pageContent, pageable, allWorkflows.size());
     }
 
     /**
      * 根据条件查询工作流
+     * @param conditions 查询条件
+     * @param pageable 分页参数
+     * @return 分页的工作流列表
      */
-    public Page<WorkflowEntity> findByConditions(Map<String, Object> conditions, Pageable pageable) {
-        List<WorkflowEntity> allWorkflows = findAll();
+    public Page<WorkflowDTO> findByConditions(Map<String, Object> conditions, Pageable pageable) {
+        List<WorkflowDTO> allWorkflows = findAll();
 
         // 过滤
-        List<WorkflowEntity> filteredWorkflows = allWorkflows.stream()
-                .filter(entity -> {
-                    for (Map.Entry<String, Object> entry : conditions.entrySet()) {
-                        Object value = getFieldValue(entity, entry.getKey());
-                        if (value == null || !value.equals(entry.getValue())) {
-                            return false;
-                        }
-                    }
-                    return true;
-                })
+        List<WorkflowDTO> filteredWorkflows = allWorkflows.stream()
+                .filter(workflow -> matchesConditions(workflow, conditions))
                 .collect(Collectors.toList());
 
         // 分页
         int start = (int) pageable.getOffset();
         int end = Math.min((start + pageable.getPageSize()), filteredWorkflows.size());
 
-        List<WorkflowEntity> pageContent = filteredWorkflows.subList(start, end);
+        List<WorkflowDTO> pageContent = filteredWorkflows.subList(start, end);
 
         return new PageImpl<>(pageContent, pageable, filteredWorkflows.size());
     }
 
     /**
      * 删除工作流
+     * @param id 工作流ID
      */
     public void deleteById(String id) {
         try {
@@ -168,13 +176,15 @@ public class OfflineWorkflowRepository {
 
             log.info("工作流删除成功: {}", id);
         } catch (IOException e) {
-            log.error("删除工作流失败: {}", id, e);
+            log.error("删除工作流文件失败: {}", id, e);
             throw new RuntimeException("删除工作流失败", e);
         }
     }
 
     /**
      * 检查工作流是否存在
+     * @param id 工作流ID
+     * @return 是否存在
      */
     public boolean existsById(String id) {
         Path filePath = getFilePath(id);
@@ -182,7 +192,17 @@ public class OfflineWorkflowRepository {
     }
 
     /**
-     * 统计数量
+     * 检查别名是否存在
+     * @param alias 别名
+     * @return 是否存在
+     */
+    public boolean existsByAlias(String alias) {
+        return findByAlias(alias).isPresent();
+    }
+
+    /**
+     * 统计工作流数量
+     * @return 数量
      */
     public long count() {
         try {
@@ -200,78 +220,80 @@ public class OfflineWorkflowRepository {
         }
     }
 
+    // ========== 私有辅助方法 ==========
+
     /**
-     * 搜索工作流
+     * 保存工作流到文件
      */
-    public List<WorkflowEntity> search(String keyword) {
-        List<WorkflowEntity> allWorkflows = findAll();
-
-        return allWorkflows.stream()
-                .filter(entity -> {
-                    return entity.getName().contains(keyword) ||
-                            (entity.getAlias() != null && entity.getAlias().contains(keyword)) ||
-                            (entity.getDescription() != null && entity.getDescription().contains(keyword));
-                })
-                .collect(Collectors.toList());
-    }
-
-    // 私有辅助方法
-
-    private void saveToFile(WorkflowEntity entity) throws IOException {
+    private void saveToFile(WorkflowDTO workflow) throws IOException {
         Path dirPath = Paths.get(storagePath);
         Files.createDirectories(dirPath);
 
-        Path filePath = getFilePath(entity.getId());
-        objectMapper.writeValue(filePath.toFile(), entity);
+        Path filePath = getFilePath(workflow.getId());
+        objectMapper.writeValue(filePath.toFile(), workflow);
     }
 
+    /**
+     * 从文件加载工作流
+     */
+    private WorkflowDTO loadFromFile(String id) throws IOException {
+        Path filePath = getFilePath(id);
+        if (!Files.exists(filePath)) {
+            return null;
+        }
+
+        return objectMapper.readValue(filePath.toFile(), WorkflowDTO.class);
+    }
+
+    /**
+     * 获取文件路径
+     */
     private Path getFilePath(String id) {
         return Paths.get(storagePath, id + ".json");
     }
 
+    /**
+     * 删除相关文件
+     */
     private void deleteRelatedFiles(String workflowId) {
-        // 删除节点文件
-        deleteFilesInDirectory("./data/nodes", workflowId + "_*.json");
-
-        // 删除规则文件
-        deleteFilesInDirectory("./data/rules", workflowId + "_*.json");
-
-        // 删除执行记录文件
-        deleteFilesInDirectory("./data/executions", "exec_*_" + workflowId + "_*.json");
+        // 这里可以删除节点、规则等相关文件
+        // 实现取决于具体的数据结构
     }
 
-    private void deleteFilesInDirectory(String directory, String pattern) {
-        try {
-            Path dirPath = Paths.get(directory);
-            if (!Files.exists(dirPath)) {
-                return;
+    /**
+     * 检查工作流是否匹配条件
+     */
+    private boolean matchesConditions(WorkflowDTO workflow, Map<String, Object> conditions) {
+        for (Map.Entry<String, Object> entry : conditions.entrySet()) {
+            String key = entry.getKey();
+            Object value = entry.getValue();
+
+            Object fieldValue = getFieldValue(workflow, key);
+            if (fieldValue == null || !fieldValue.equals(value)) {
+                return false;
             }
-
-            Files.list(dirPath)
-                    .filter(path -> path.getFileName().toString().matches(pattern.replace("*", ".*")))
-                    .forEach(path -> {
-                        try {
-                            Files.deleteIfExists(path);
-                        } catch (IOException e) {
-                            log.warn("删除相关文件失败: {}", path, e);
-                        }
-                    });
-        } catch (IOException e) {
-            log.warn("遍历目录失败: {}", directory, e);
         }
+        return true;
     }
 
-    private Object getFieldValue(WorkflowEntity entity, String fieldName) {
+    /**
+     * 通过反射获取字段值
+     */
+    private Object getFieldValue(WorkflowDTO workflow, String fieldName) {
         try {
-            java.lang.reflect.Field field = WorkflowEntity.class.getDeclaredField(fieldName);
+            java.lang.reflect.Field field = WorkflowDTO.class.getDeclaredField(fieldName);
             field.setAccessible(true);
-            return field.get(entity);
+            return field.get(workflow);
         } catch (Exception e) {
             return null;
         }
     }
 
+    /**
+     * 生成唯一ID
+     */
     private String generateId() {
-        return "workflow_" + System.currentTimeMillis() + "_" + UUID.randomUUID().toString().substring(0, 8);
+        return "workflow_" + System.currentTimeMillis() + "_" +
+                UUID.randomUUID().toString().substring(0, 8);
     }
 }

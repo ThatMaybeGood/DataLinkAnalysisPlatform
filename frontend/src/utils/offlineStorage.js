@@ -1,288 +1,205 @@
-// IndexedDB 封装
-class IndexedDBStorage {
-  constructor(dbName, version) {
-    this.dbName = dbName;
-    this.version = version;
-    this.db = null;
-  }
+import axios from 'axios';
+import BaseWorkflowService from './BaseWorkflowService';
+import appConfig from '../config/appConfig';
 
-  // 初始化数据库
-  async init() {
-    return new Promise((resolve, reject) => {
-      const request = indexedDB.open(this.dbName, this.version);
-
-      request.onupgradeneeded = (event) => {
-        const db = event.target.result;
-
-        // 创建工作流存储
-        if (!db.objectStoreNames.contains('workflows')) {
-          const workflowStore = db.createObjectStore('workflows', { keyPath: 'id' });
-          workflowStore.createIndex('alias', 'alias', { unique: true });
-          workflowStore.createIndex('category', 'category', { unique: false });
-          workflowStore.createIndex('updatedAt', 'updatedAt', { unique: false });
-        }
-
-        // 创建节点存储
-        if (!db.objectStoreNames.contains('nodes')) {
-          const nodeStore = db.createObjectStore('nodes', { keyPath: 'id' });
-          nodeStore.createIndex('workflowId', 'workflowId', { unique: false });
-          nodeStore.createIndex('type', 'type', { unique: false });
-        }
-
-        // 创建验证规则存储
-        if (!db.objectStoreNames.contains('validationRules')) {
-          const ruleStore = db.createObjectStore('validationRules', { keyPath: 'id' });
-          ruleStore.createIndex('nodeId', 'nodeId', { unique: false });
-        }
-
-        // 创建执行记录存储
-        if (!db.objectStoreNames.contains('executions')) {
-          const executionStore = db.createObjectStore('executions', { keyPath: 'id' });
-          executionStore.createIndex('workflowId', 'workflowId', { unique: false });
-          executionStore.createIndex('status', 'status', { unique: false });
-        }
-
-        // 创建连接器存储
-        if (!db.objectStoreNames.contains('connectors')) {
-          const connectorStore = db.createObjectStore('connectors', { keyPath: 'id' });
-          connectorStore.createIndex('type', 'type', { unique: false });
-        }
-
-        // 创建同步队列存储
-        if (!db.objectStoreNames.contains('syncQueue')) {
-          const syncStore = db.createObjectStore('syncQueue', { keyPath: 'id' });
-          syncStore.createIndex('status', 'status', { unique: false });
-          syncStore.createIndex('entityType', 'entityType', { unique: false });
-        }
-      };
-
-      request.onsuccess = (event) => {
-        this.db = event.target.result;
-        resolve();
-      };
-
-      request.onerror = (event) => {
-        reject(new Error('Failed to open IndexedDB: ' + event.target.error));
-      };
-    });
-  }
-
-  // 保存数据
-  async save(storeName, data) {
-    await this.ensureConnection();
-
-    return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([storeName], 'readwrite');
-      const store = transaction.objectStore(storeName);
-      const request = store.put(data);
-
-      request.onsuccess = () => resolve(data);
-      request.onerror = () => reject(request.error);
-    });
-  }
-
-  // 批量保存
-  async saveAll(storeName, items) {
-    await this.ensureConnection();
-
-    return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([storeName], 'readwrite');
-      const store = transaction.objectStore(storeName);
-
-      let completed = 0;
-      const results = [];
-
-      items.forEach(item => {
-        const request = store.put(item);
-        request.onsuccess = () => {
-          results.push(item);
-          completed++;
-          if (completed === items.length) {
-            resolve(results);
-          }
-        };
-        request.onerror = () => reject(request.error);
-      });
-    });
-  }
-
-  // 获取单个数据
-  async get(storeName, id) {
-    await this.ensureConnection();
-
-    return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([storeName], 'readonly');
-      const store = transaction.objectStore(storeName);
-      const request = store.get(id);
-
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
-  }
-
-  // 获取所有数据
-  async getAll(storeName) {
-    await this.ensureConnection();
-
-    return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([storeName], 'readonly');
-      const store = transaction.objectStore(storeName);
-      const request = store.getAll();
-
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
-  }
-
-  // 查询数据
-  async query(storeName, indexName, value) {
-    await this.ensureConnection();
-
-    return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([storeName], 'readonly');
-      const store = transaction.objectStore(storeName);
-      const index = store.index(indexName);
-      const request = index.getAll(value);
-
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
-  }
-
-  // 删除数据
-  async delete(storeName, id) {
-    await this.ensureConnection();
-
-    return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([storeName], 'readwrite');
-      const store = transaction.objectStore(storeName);
-      const request = store.delete(id);
-
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
-    });
-  }
-
-  // 批量删除
-  async deleteAll(storeName, ids) {
-    await this.ensureConnection();
-
-    return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([storeName], 'readwrite');
-      const store = transaction.objectStore(storeName);
-
-      let completed = 0;
-
-      ids.forEach(id => {
-        const request = store.delete(id);
-        request.onsuccess = () => {
-          completed++;
-          if (completed === ids.length) {
-            resolve();
-          }
-        };
-        request.onerror = () => reject(request.error);
-      });
-    });
-  }
-
-  // 清空存储
-  async clear(storeName) {
-    await this.ensureConnection();
-
-    return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([storeName], 'readwrite');
-      const store = transaction.objectStore(storeName);
-      const request = store.clear();
-
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
-    });
-  }
-
-  // 获取计数
-  async count(storeName) {
-    await this.ensureConnection();
-
-    return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([storeName], 'readonly');
-      const store = transaction.objectStore(storeName);
-      const request = store.count();
-
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
-  }
-
-  // 检查数据库连接
-  async ensureConnection() {
-    if (!this.db) {
-      await this.init();
-    }
-  }
-
-  // 导出数据库内容
-  async exportDatabase() {
-    await this.ensureConnection();
-
-    const stores = ['workflows', 'nodes', 'validationRules', 'connectors', 'executions'];
-    const exportData = {};
-
-    for (const storeName of stores) {
-      exportData[storeName] = await this.getAll(storeName);
-    }
-
-    // 添加元数据
-    exportData.metadata = {
-      exportTime: new Date().toISOString(),
-      version: '1.0.0',
-      dbName: this.dbName,
-      storeCount: stores.length,
-      totalRecords: Object.values(exportData).reduce((sum, data) => sum + data.length, 0)
-    };
-
-    return exportData;
-  }
-
-  // 导入数据库内容
-  async importDatabase(data) {
-    await this.ensureConnection();
-
-    // 先备份现有数据
-    const backup = await this.exportDatabase();
-
-    try {
-      // 清空现有数据
-      const stores = Object.keys(data).filter(key => key !== 'metadata');
-      for (const storeName of stores) {
-        if (this.db.objectStoreNames.contains(storeName)) {
-          await this.clear(storeName);
-
-          // 导入新数据
-          const items = data[storeName];
-          if (items && items.length > 0) {
-            await this.saveAll(storeName, items);
-          }
-        }
+class OnlineWorkflowService extends BaseWorkflowService {
+  constructor() {
+    super();
+    this.api = axios.create({
+      baseURL: appConfig.getApiBaseUrl(),
+      timeout: 30000,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-App-Mode': 'online'
       }
+    });
 
-      return { success: true, backup };
+    // 请求拦截器
+    this.api.interceptors.request.use(
+      config => {
+        const token = localStorage.getItem('auth_token');
+        if (token) {
+          config.headers.Authorization = `Bearer ${token}`;
+        }
+        return config;
+      },
+      error => Promise.reject(error)
+    );
+
+    // 响应拦截器
+    this.api.interceptors.response.use(
+      response => response.data,
+      error => {
+        console.error('API请求失败:', error);
+        if (error.response?.status === 401) {
+          // 处理未授权
+          localStorage.removeItem('auth_token');
+          window.location.href = '/login';
+        }
+        return Promise.reject(error);
+      }
+    );
+  }
+
+  // 获取工作流列表
+  async getWorkflows(params = {}) {
+    try {
+      const response = await this.api.get('/workflows', { params });
+      return response;
     } catch (error) {
-      // 恢复备份
-      await this.importDatabase(backup);
-      throw new Error('导入失败，已恢复备份: ' + error.message);
+      console.error('获取工作流列表失败:', error);
+      throw error;
     }
   }
 
-  // 关闭数据库连接
-  close() {
-    if (this.db) {
-      this.db.close();
-      this.db = null;
+  // 获取单个工作流
+  async getWorkflowById(id) {
+    try {
+      const response = await this.api.get(`/workflows/${id}`);
+      return response;
+    } catch (error) {
+      console.error(`获取工作流 ${id} 失败:`, error);
+      throw error;
+    }
+  }
+
+  // 创建工作流
+  async createWorkflow(workflow) {
+    try {
+      const response = await this.api.post('/workflows', workflow);
+      return response;
+    } catch (error) {
+      console.error('创建工作流失败:', error);
+      throw error;
+    }
+  }
+
+  // 更新工作流
+  async updateWorkflow(id, workflow) {
+    try {
+      const response = await this.api.put(`/workflows/${id}`, workflow);
+      return response;
+    } catch (error) {
+      console.error(`更新工作流 ${id} 失败:`, error);
+      throw error;
+    }
+  }
+
+  // 删除工作流
+  async deleteWorkflow(id) {
+    try {
+      await this.api.delete(`/workflows/${id}`);
+      return true;
+    } catch (error) {
+      console.error(`删除工作流 ${id} 失败:`, error);
+      throw error;
+    }
+  }
+
+  // 执行工作流
+  async executeWorkflow(id, params) {
+    try {
+      const response = await this.api.post(`/workflows/${id}/execute`, params);
+      return response;
+    } catch (error) {
+      console.error(`执行工作流 ${id} 失败:`, error);
+      throw error;
+    }
+  }
+
+  // 获取工作流节点
+  async getWorkflowNodes(workflowId) {
+    try {
+      const response = await this.api.get(`/workflows/${workflowId}/nodes`);
+      return response;
+    } catch (error) {
+      console.error(`获取工作流 ${workflowId} 节点失败:`, error);
+      throw error;
+    }
+  }
+
+  // 获取工作流执行记录
+  async getWorkflowExecutions(workflowId, params = {}) {
+    try {
+      const response = await this.api.get(`/workflows/${workflowId}/executions`, { params });
+      return response;
+    } catch (error) {
+      console.error(`获取工作流 ${workflowId} 执行记录失败:`, error);
+      throw error;
+    }
+  }
+
+  // 搜索工作流
+  async searchWorkflows(query) {
+    try {
+      const response = await this.api.get('/workflows/search', { params: query });
+      return response;
+    } catch (error) {
+      console.error('搜索工作流失败:', error);
+      throw error;
+    }
+  }
+
+  // 批量操作
+  async batchOperation(operation, ids, data = {}) {
+    try {
+      const response = await this.api.post('/workflows/batch', {
+        operation,
+        ids,
+        data
+      });
+      return response;
+    } catch (error) {
+      console.error(`批量操作 ${operation} 失败:`, error);
+      throw error;
+    }
+  }
+
+  // 克隆工作流
+  async cloneWorkflow(id, newName = null) {
+    try {
+      const response = await this.api.post(`/workflows/${id}/clone`, { newName });
+      return response;
+    } catch (error) {
+      console.error(`克隆工作流 ${id} 失败:`, error);
+      throw error;
+    }
+  }
+
+  // 导出工作流
+  async exportWorkflow(id) {
+    try {
+      const response = await this.api.get(`/workflows/${id}/export`, {
+        responseType: 'blob'
+      });
+
+      // 创建下载链接
+      const url = window.URL.createObjectURL(new Blob([response]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `workflow_${id}_${Date.now()}.json`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+
+      return true;
+    } catch (error) {
+      console.error(`导出工作流 ${id} 失败:`, error);
+      throw error;
+    }
+  }
+
+  // 获取统计信息
+  async getStatistics() {
+    try {
+      const response = await this.api.get('/workflows/statistics');
+      return response;
+    } catch (error) {
+      console.error('获取统计信息失败:', error);
+      throw error;
     }
   }
 }
 
-// 导出单例
-const offlineStorage = new IndexedDBStorage('workflow_offline_db', 1);
-export default offlineStorage;
+export default OnlineWorkflowService;
