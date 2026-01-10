@@ -1,17 +1,117 @@
-# backend/src/main/resources/application-online.yml
+# ===================================================================
+# 在线模式配置
+# ===================================================================
+
+# 激活在线模式
+mode: online
+
 spring:
-  config:
-    activate:
-      on-profile: online
+  # 数据源配置（在线模式必须）
   datasource:
-    url: jdbc:mysql://localhost:3306/workflow_db
-    username: root
-    password: root123
-    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: ${ONLINE_DB_URL:jdbc:mysql://localhost:3306/workflow_online?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai}
+    username: ${ONLINE_DB_USERNAME:root}
+    password: ${ONLINE_DB_PASSWORD:password}
+    hikari:
+      maximum-pool-size: 50
+      minimum-idle: 10
+
+  # JPA配置
   jpa:
     hibernate:
       ddl-auto: update
     show-sql: true
+    properties:
+      hibernate:
+        jdbc:
+          batch_size: 50
+        order_inserts: true
+        order_updates: true
 
-app:
-  mode: online
+  # 缓存配置（Redis）
+  cache:
+    type: redis
+    redis:
+      time-to-live: 3600s
+      cache-null-values: false
+
+  # 消息队列
+  rabbitmq:
+    enabled: true
+
+  # 事务管理
+  transaction:
+    default-timeout: 30
+
+# 在线模式特有配置
+workflow:
+  platform:
+    mode: online
+
+    # 数据库配置
+    database:
+      type: mysql
+      schema-validation: true
+      migration:
+        enabled: true
+        locations: classpath:db/migration/online
+
+    # 集群配置
+    cluster:
+      enabled: ${CLUSTER_ENABLED:false}
+      nodes: ${CLUSTER_NODES:localhost:8080}
+      leader-election: true
+
+    # 高可用配置
+    high-availability:
+      enabled: true
+      failover-timeout: 5000
+      heartbeat-interval: 30000
+
+    # 性能优化
+    performance:
+      connection-pool: true
+      query-cache: true
+      second-level-cache: true
+      batch-processing: true
+
+    # 监控告警
+    monitoring:
+      enabled: true
+      metrics:
+        export:
+          prometheus: true
+          influxdb: false
+      alerts:
+        enabled: true
+        channels:
+          - email
+          - webhook
+
+    # 备份配置
+    backup:
+      enabled: true
+      schedule: "0 0 2 * * ?"  # 每天凌晨2点
+      retention-days: 30
+      type: full
+
+    # 审计日志
+    audit:
+      enabled: true
+      log-changes: true
+      retention-days: 90
+
+# MyBatis Plus配置
+mybatis-plus:
+  configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+# 数据源监控
+management:
+  datasource:
+    metrics:
+      enabled: true

@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 import javax.persistence.*;
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -132,6 +133,12 @@ public class WorkflowEntity extends com.workflow.platform.model.entity.BaseEntit
      */
     @OneToMany(mappedBy = "workflow", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<ExecutionEntity> executions;
+
+    /** 更新时间 */
+
+    private LocalDateTime updateTime;
+    /** 创建时间 */
+    private LocalDateTime createTime;
 
     /**
      * 默认构造函数

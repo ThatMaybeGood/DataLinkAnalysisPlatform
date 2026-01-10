@@ -12,6 +12,12 @@ import java.util.List;
 /**
  * 工作流视图对象（VO）
  * 用于返回给前端的展示数据
+ * 1. WorkflowVersionVO
+ *
+ * 包含版本基本信息、统计信息、文件信息等
+ * 支持复杂的数据结构展示
+ * 包含详细的嵌套对象定义
+ *
  */
 @Data
 @ApiModel(description = "工作流视图对象")
