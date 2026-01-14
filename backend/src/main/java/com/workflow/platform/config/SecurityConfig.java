@@ -40,45 +40,45 @@ public class SecurityConfig {
             AuthenticationConfiguration authenticationConfiguration) throws Exception {
         return authenticationConfiguration.getAuthenticationManager();
     }
-
-    @Bean
-    public JwtAuthenticationFilter jwtAuthenticationFilter() {
-        return new JwtAuthenticationFilter(authService, jwtSecret);
-    }
-
-    @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        http
-                .csrf(csrf -> csrf.disable())
-                .sessionManagement(session -> session
-                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(auth -> auth
-                        // 公开访问的接口
-                        .requestMatchers(
-                                "/api/auth/**",
-                                "/api/public/**",
-                                "/swagger-ui/**",
-                                "/api-docs/**",
-                                "/h2-console/**",
-                                "/error"
-                        ).permitAll()
-                        // 需要认证的接口
-                        .requestMatchers("/api/**").authenticated()
-                        // 管理员接口
-                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                        .anyRequest().authenticated())
-                .addFilterBefore(jwtAuthenticationFilter(),
-                        UsernamePasswordAuthenticationFilter.class)
-                .headers(headers -> headers
-                        .frameOptions(frame -> frame.sameOrigin())
-                        .contentSecurityPolicy(csp -> csp.policyDirectives(
-                                "default-src 'self'; " +
-                                        "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
-                                        "style-src 'self' 'unsafe-inline'; " +
-                                        "img-src 'self' data: https:;" +
-                                        "font-src 'self' data:;"))
-                );
-
-        return http.build();
-    }
+//
+//    @Bean
+//    public JwtAuthenticationFilter jwtAuthenticationFilter() {
+//        return new JwtAuthenticationFilter(authService, jwtSecret);
+//    }
+//
+//    @Bean
+//    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+//        http
+//                .csrf(csrf -> csrf.disable())
+//                .sessionManagement(session -> session
+//                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+//                .authorizeHttpRequests(auth -> auth
+//                        // 公开访问的接口
+//                        .requestMatchers(
+//                                "/api/auth/**",
+//                                "/api/public/**",
+//                                "/swagger-ui/**",
+//                                "/api-docs/**",
+//                                "/h2-console/**",
+//                                "/error"
+//                        ).permitAll()
+//                        // 需要认证的接口
+//                        .requestMatchers("/api/**").authenticated()
+//                        // 管理员接口
+//                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
+//                        .anyRequest().authenticated())
+//                .addFilterBefore(jwtAuthenticationFilter(),
+//                        UsernamePasswordAuthenticationFilter.class)
+//                .headers(headers -> headers
+//                        .frameOptions(frame -> frame.sameOrigin())
+//                        .contentSecurityPolicy(csp -> csp.policyDirectives(
+//                                "default-src 'self'; " +
+//                                        "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
+//                                        "style-src 'self' 'unsafe-inline'; " +
+//                                        "img-src 'self' data: https:;" +
+//                                        "font-src 'self' data:;"))
+//                );
+//
+//        return http.build();
+//    }
 }

@@ -1,5 +1,4 @@
 package com.workflow.platform.model.dto;
 
-//搜索DTO
-public class SearchDTO {
+public class SearchResultDTO {
 }

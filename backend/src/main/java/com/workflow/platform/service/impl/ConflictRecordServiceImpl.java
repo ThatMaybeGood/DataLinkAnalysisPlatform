@@ -196,7 +196,6 @@ public class ConflictRecordServiceImpl implements ConflictRecordService {
                 .collect(Collectors.toList());
     }
 
-    @Override
     @Transactional
     public ConflictRecordVO resolveConflict(ConflictResolutionDTO resolutionDTO) {
         log.info("解决冲突，冲突ID: {}，解决策略: {}",
@@ -237,7 +236,6 @@ public class ConflictRecordServiceImpl implements ConflictRecordService {
         return convertToVO(conflictRecord);
     }
 
-    @Override
     @Transactional
     public List<ConflictRecordVO> batchResolveConflicts(List<ConflictResolutionDTO> resolutionDTOs) {
         log.info("批量解决冲突，数量: {}", resolutionDTOs.size());
@@ -402,7 +400,6 @@ public class ConflictRecordServiceImpl implements ConflictRecordService {
                 .collect(Collectors.toList());
     }
 
-    @Override
     public ConflictStatisticsVO getConflictStatistics(LocalDateTime startTime, LocalDateTime endTime) {
         log.debug("统计冲突信息，开始时间: {}，结束时间: {}", startTime, endTime);
 
@@ -476,7 +473,7 @@ public class ConflictRecordServiceImpl implements ConflictRecordService {
         Map<String, Object> stats = new HashMap<>();
 
         // 待解决冲突数
-        long pendingCount = conflictRecordRepository.countByStatus("PENDING").size();
+        long pendingCount = conflictRecordRepository.countByStatus().size();
         stats.put("pendingCount", pendingCount);
 
         // 今日新增冲突数
@@ -487,7 +484,7 @@ public class ConflictRecordServiceImpl implements ConflictRecordService {
         stats.put("todayNewCount", todayNewCount);
 
         // 高优先级冲突数
-        List<ConflictRecordEntity> highPriority = getHighPriorityConflicts();
+        List<ConflictRecordVO> highPriority = getHighPriorityConflicts();
         stats.put("highPriorityCount", highPriority.size());
 
         // 最近解决的冲突
@@ -1256,7 +1253,7 @@ public class ConflictRecordServiceImpl implements ConflictRecordService {
     }
 
     @Async
-    private void sendConflictNotification(ConflictRecordEntity conflictRecord) {
+    protected void sendConflictNotification(ConflictRecordEntity conflictRecord) {
         try {
             Map<String, Object> notificationData = new HashMap<>();
             notificationData.put("conflictId", conflictRecord.getId());

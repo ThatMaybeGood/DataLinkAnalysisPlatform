@@ -8,6 +8,7 @@ package com.workflow.platform.repository;
  */
 
 import com.workflow.platform.model.entity.WorkflowVersionEntity;
+import org.apache.kafka.common.protocol.types.Field;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -32,6 +33,8 @@ public interface WorkflowVersionRepository extends JpaRepository<WorkflowVersion
      * 根据工作流ID和版本号查找版本
      */
     Optional<WorkflowVersionEntity> findByWorkflowIdAndVersionNumber(Long workflowId, Integer versionNumber);
+
+    WorkflowVersionEntity findByWorkflowIdAndVersionNumber(String workflowId, Integer versionNumber);
 
     /**
      * 查找工作流的当前版本
@@ -89,4 +92,6 @@ public interface WorkflowVersionRepository extends JpaRepository<WorkflowVersion
     List<WorkflowVersionEntity> findByCreateTimeBetween(@Param("workflowId") Long workflowId,
                                                         @Param("startTime") java.time.LocalDateTime startTime,
                                                         @Param("endTime") java.time.LocalDateTime endTime);
+
+    WorkflowVersionEntity findFirstByBranchIdOrderByVersionNumberDesc(String branchId);
 }

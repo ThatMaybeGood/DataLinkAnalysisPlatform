@@ -1,11 +1,12 @@
 package com.workflow.platform.exception;
 
 import com.workflow.platform.constants.ErrorCodeConstants;
+import lombok.Getter;
 
 import java.util.Map;
 
-//工作流异常
-public class WorkflowException extends RuntimeException {
+@Getter
+public class VersionException extends RuntimeException {
 
     private final int errorCode;
     private final String conflictType;
@@ -13,7 +14,8 @@ public class WorkflowException extends RuntimeException {
     private final Map<String, Object> remoteData;
     private final String resolutionSuggestion;
 
-    public WorkflowException(String message) {
+    public VersionException(String message) {
+
         super(message);
         this.errorCode = ErrorCodeConstants.SYNC_CONFLICT;
         this.conflictType = "general";
@@ -21,5 +23,13 @@ public class WorkflowException extends RuntimeException {
         this.remoteData = null;
         this.resolutionSuggestion = null;
     }
+    public VersionException(String message,Exception e) {
 
+        super(message);
+        this.errorCode = ErrorCodeConstants.SYNC_CONFLICT;
+        this.conflictType = "general";
+        this.localData = null;
+        this.remoteData = null;
+        this.resolutionSuggestion = null;
+    }
 }

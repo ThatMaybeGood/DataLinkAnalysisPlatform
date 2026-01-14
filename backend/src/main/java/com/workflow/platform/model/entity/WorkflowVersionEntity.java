@@ -10,8 +10,12 @@ package com.workflow.platform.model.entity;
 
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import org.apache.poi.ss.formula.functions.T;
+
 import javax.persistence.*;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
 
 /**
  * 工作流版本实体
@@ -30,7 +34,7 @@ public class WorkflowVersionEntity {
      * 工作流ID
      */
     @Column(name = "workflow_id", nullable = false)
-    private Long workflowId;
+    private String workflowId;
 
     /**
      * 版本号
@@ -106,8 +110,24 @@ public class WorkflowVersionEntity {
      */
     @Lob
     @Column(name = "metadata")
-    private String metadata;
+    private Map<String,Object> metadata;
 
+    private LocalDateTime createdTime;
+
+    private String status;
+
+    private String versionData;
+    private String checksum;
+    private Integer dataSize;
+    private Integer rollbackFromVersion;
+    private String rollbackReason;
+    private String branchId;
+    private String branchName;
+    private Integer basedOnVersion;
+    private String mergeFromBranch;
+    private String mergeStrategy;
+    private Integer mergeBaseVersion;
+    private LocalDateTime deletedTime;
     @PrePersist
     protected void onCreate() {
         if (createTime == null) {

@@ -93,6 +93,12 @@ public class WorkflowDTO {
 
     private String templateVersion;
 
+    private String branchId;
+    private String branchName;
+    private Integer basedOnVersion;
+    private LocalDateTime branchCreatedTime;
+    private String branchCreatedBy;
+
     /**
      * 验证DTO数据的有效性
      *

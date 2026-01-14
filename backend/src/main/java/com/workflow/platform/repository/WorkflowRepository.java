@@ -126,4 +126,6 @@ public interface WorkflowRepository extends JpaRepository<WorkflowEntity, String
      */
     @Query("UPDATE WorkflowEntity w SET w.status = :status WHERE w.id IN :ids")
     int updateStatusByIds(@Param("ids") List<String> ids, @Param("status") String status);
+
+    Optional<WorkflowEntity> findById(Long id);
 }

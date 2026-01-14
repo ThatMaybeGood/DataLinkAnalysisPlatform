@@ -13,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -56,63 +57,63 @@ public class WorkflowVersionManager {
     /**
      * 创建新版本
      */
-    public WorkflowVersionEntity createVersion(String workflowId, WorkflowDTO workflow,
-                                               String versionName, String description,
-                                               String createdBy) {
-        Object lock = getVersionLock(workflowId);
-        synchronized (lock) {
-            try {
-                log.info("创建工作流版本: {} - {}", workflowId, versionName);
-
-                // 获取当前版本号
-                Integer nextVersion = getNextVersionNumber(workflowId);
-
-                // 创建版本实体
-                WorkflowVersionEntity version = new WorkflowVersionEntity();
-                version.setWorkflowId(workflowId);
-                version.setVersionNumber(nextVersion);
-                version.setVersionName(versionName);
-                version.setDescription(description);
-                version.setCreatedBy(createdBy);
-                version.setCreatedTime(new Date());
-                version.setStatus("active");
-
-                // 获取前一个版本（用于增量存储）
-                WorkflowVersionEntity previousVersion = null;
-                if (deltaStorage && nextVersion > 1) {
-                    previousVersion = versionRepository.findByWorkflowIdAndVersionNumber(
-                            workflowId, nextVersion - 1);
-                }
-
-                // 存储版本数据
-                String versionData = prepareVersionData(workflow, previousVersion);
-                version.setVersionData(versionData);
-
-                // 计算哈希值
-                String checksum = calculateChecksum(versionData);
-                version.setChecksum(checksum);
-
-                // 计算大小
-                version.setDataSize(versionData.length());
-
-                // 保存版本
-                version = versionRepository.save(version);
-
-                // 更新缓存
-                updateVersionCache(workflowId, version);
-
-                // 清理旧版本（如果超过最大限制）
-                cleanupOldVersions(workflowId);
-
-                log.info("版本创建成功: {} - v{}", workflowId, nextVersion);
-                return version;
-
-            } catch (Exception e) {
-                log.error("创建工作流版本失败: {}，错误: {}", workflowId, e.getMessage(), e);
-                throw new VersionException("创建版本失败: " + e.getMessage(), e);
-            }
-        }
-    }
+//    public WorkflowVersionEntity createVersion(String workflowId, WorkflowDTO workflow,
+//                                               String versionName, String description,
+//                                               String createdBy) {
+//        Object lock = getVersionLock(workflowId);
+//        synchronized (lock) {
+//            try {
+//                log.info("创建工作流版本: {} - {}", workflowId, versionName);
+//
+//                // 获取当前版本号
+//                Integer nextVersion = getNextVersionNumber(workflowId);
+//
+//                // 创建版本实体
+//                WorkflowVersionEntity version = new WorkflowVersionEntity();
+//                version.setWorkflowId(workflowId);
+//                version.setVersionNumber(nextVersion);
+//                version.setVersionName(versionName);
+//                version.setDescription(description);
+//                version.setCreatedBy(createdBy);
+//                version.setCreatedTime(LocalDateTime.now());
+//                version.setStatus("active");
+//
+//                // 获取前一个版本（用于增量存储）
+//                WorkflowVersionEntity previousVersion = null;
+//                if (deltaStorage && nextVersion > 1) {
+//                    previousVersion = versionRepository.findByWorkflowIdAndVersionNumber(
+//                            workflowId, nextVersion - 1);
+//                }
+//
+//                // 存储版本数据
+//                String versionData = prepareVersionData(workflow, previousVersion);
+//                version.setVersionData(versionData);
+//
+//                // 计算哈希值
+//                String checksum = calculateChecksum(versionData);
+//                version.setChecksum(checksum);
+//
+//                // 计算大小
+//                version.setDataSize(versionData.length());
+//
+//                // 保存版本
+//                version = versionRepository.save(version);
+//
+//                // 更新缓存
+//                updateVersionCache(workflowId, version);
+//
+//                // 清理旧版本（如果超过最大限制）
+//                cleanupOldVersions(workflowId);
+//
+//                log.info("版本创建成功: {} - v{}", workflowId, nextVersion);
+//                return version;
+//
+//            } catch (Exception e) {
+//                log.error("创建工作流版本失败: {}，错误: {}", workflowId, e.getMessage(), e);
+//                throw new VersionException("创建版本失败: " + e.getMessage(), e);
+//            }
+//        }
+//    }
 
     /**
      * 获取特定版本
@@ -132,7 +133,6 @@ public class WorkflowVersionManager {
             if (version == null) {
                 throw new VersionException("版本不存在: " + workflowId + " v" + versionNumber);
             }
-
             // 验证数据完整性
             validateVersionData(version);
 
@@ -154,7 +154,7 @@ public class WorkflowVersionManager {
      */
     public List<WorkflowVersionEntity> getVersionList(String workflowId) {
         List<WorkflowVersionEntity> versions = versionRepository
-                .findByWorkflowIdOrderByVersionNumberDesc(workflowId);
+                .findByWorkflowIdOrderByVersionNumberDesc(Long.valueOf(workflowId));
 
         // 为每个版本添加元数据
         versions.forEach(this::enrichVersionMetadata);
@@ -173,7 +173,7 @@ public class WorkflowVersionManager {
         diff.setWorkflowId(workflowId);
         diff.setVersion1(version1);
         diff.setVersion2(version2);
-        diff.setDiffTime(new Date());
+        diff.setDiffTime(LocalDateTime.now());
 
         // 比较基本信息
         diff.setBasicChanges(compareBasicInfo(v1, v2));
@@ -213,7 +213,7 @@ public class WorkflowVersionManager {
                 rollbackVersion.setVersionName("Rollback to v" + targetVersion);
                 rollbackVersion.setDescription("回滚到版本 " + targetVersion + "，原因: " + reason);
                 rollbackVersion.setCreatedBy(rolledBackBy);
-                rollbackVersion.setCreatedTime(new Date());
+                rollbackVersion.setCreatedTime(LocalDateTime.now());
                 rollbackVersion.setStatus("rollback");
                 rollbackVersion.setRollbackFromVersion(targetVersion);
                 rollbackVersion.setRollbackReason(reason);
@@ -275,7 +275,7 @@ public class WorkflowVersionManager {
                 baseWorkflow.setBranchName(branchName);
                 baseWorkflow.setBasedOnVersion(baseVersion);
                 baseWorkflow.setBranchCreatedBy(createdBy);
-                baseWorkflow.setBranchCreatedTime(new Date());
+                baseWorkflow.setBranchCreatedTime(LocalDateTime.now());
 
                 // 创建分支版本
                 WorkflowVersionEntity branchVersion = new WorkflowVersionEntity();
@@ -284,7 +284,7 @@ public class WorkflowVersionManager {
                 branchVersion.setVersionName(branchName + " v1");
                 branchVersion.setDescription(description);
                 branchVersion.setCreatedBy(createdBy);
-                branchVersion.setCreatedTime(new Date());
+                branchVersion.setCreatedTime(LocalDateTime.now());
                 branchVersion.setStatus("branch");
                 branchVersion.setBranchId(branchId);
                 branchVersion.setBranchName(branchName);
@@ -352,7 +352,7 @@ public class WorkflowVersionManager {
                 mergeVersion.setVersionName("Merge from " + branchId);
                 mergeVersion.setDescription(description);
                 mergeVersion.setCreatedBy(mergedBy);
-                mergeVersion.setCreatedTime(new Date());
+                mergeVersion.setCreatedTime(LocalDateTime.now());
                 mergeVersion.setStatus("merged");
                 mergeVersion.setMergeFromBranch(branchId);
                 mergeVersion.setMergeStrategy(strategy);
@@ -396,108 +396,108 @@ public class WorkflowVersionManager {
     /**
      * 获取版本标签
      */
-    public List<VersionTag> getVersionTags(String workflowId) {
-        return versionRepository.findTagsByWorkflowId(workflowId)
-                .stream()
-                .map(this::convertToVersionTag)
-                .collect(Collectors.toList());
-    }
+//    public List<VersionTag> getVersionTags(String workflowId) {
+//        return versionRepository.findTagsByWorkflowId(workflowId)
+//                .stream()
+//                .map(this::convertToVersionTag)
+//                .collect(Collectors.toList());
+//    }
 
     /**
      * 添加版本标签
      */
-    public VersionTag addVersionTag(String workflowId, int versionNumber,
-                                    String tagName, String tagColor, String description) {
-        WorkflowVersionEntity version = versionRepository
-                .findByWorkflowIdAndVersionNumber(workflowId, versionNumber);
-
-        if (version == null) {
-            throw new VersionException("版本不存在: v" + versionNumber);
-        }
-
-        // 创建标签
-        VersionTag tag = new VersionTag();
-        tag.setWorkflowId(workflowId);
-        tag.setVersionNumber(versionNumber);
-        tag.setTagName(tagName);
-        tag.setTagColor(tagColor);
-        tag.setDescription(description);
-        tag.setCreatedBy("system");
-        tag.setCreatedTime(new Date());
-
-        // 保存标签
-        version.setTags(version.getTags() == null ? new ArrayList<>() : version.getTags());
-        version.getTags().add(tag);
-
-        // 更新版本
-        versionRepository.save(version);
-
-        log.info("添加版本标签: {} v{} - {}", workflowId, versionNumber, tagName);
-
-        return tag;
-    }
+//    public VersionTag addVersionTag(String workflowId, int versionNumber,
+//                                    String tagName, String tagColor, String description) {
+//        WorkflowVersionEntity version = versionRepository
+//                .findByWorkflowIdAndVersionNumber(workflowId, versionNumber);
+//
+//        if (version == null) {
+//            throw new VersionException("版本不存在: v" + versionNumber);
+//        }
+//
+//        // 创建标签
+//        VersionTag tag = new VersionTag();
+//        tag.setWorkflowId(workflowId);
+//        tag.setVersionNumber(versionNumber);
+//        tag.setTagName(tagName);
+//        tag.setTagColor(tagColor);
+//        tag.setDescription(description);
+//        tag.setCreatedBy("system");
+//        tag.setCreatedTime(LocalDateTime.now());
+//
+//        // 保存标签
+//        version.setTags(version.getTags() == null ? new ArrayList<>() : version.getTags());
+//        version.getTags().add(tag);
+//
+//        // 更新版本
+//        versionRepository.save(version);
+//
+//        log.info("添加版本标签: {} v{} - {}", workflowId, versionNumber, tagName);
+//
+//        return tag;
+//    }
 
     /**
      * 获取版本统计
      */
-    public VersionStatistics getVersionStatistics(String workflowId) {
-        VersionStatistics stats = new VersionStatistics();
-        stats.setWorkflowId(workflowId);
-        stats.setGeneratedTime(new Date());
-
-        // 获取所有版本
-        List<WorkflowVersionEntity> versions = versionRepository
-                .findByWorkflowIdOrderByVersionNumberAsc(workflowId);
-
-        if (versions.isEmpty()) {
-            return stats;
-        }
-
-        // 基本统计
-        stats.setTotalVersions(versions.size());
-        stats.setFirstVersion(versions.get(0).getVersionNumber());
-        stats.setLatestVersion(versions.get(versions.size() - 1).getVersionNumber());
-
-        // 时间统计
-        Date firstDate = versions.get(0).getCreatedTime();
-        Date lastDate = versions.get(versions.size() - 1).getCreatedTime();
-        long duration = lastDate.getTime() - firstDate.getTime();
-        stats.setVersionDuration(duration);
-        stats.setAverageVersionInterval(duration / Math.max(1, versions.size() - 1));
-
-        // 大小统计
-        long totalSize = versions.stream().mapToLong(WorkflowVersionEntity::getDataSize).sum();
-        stats.setTotalStorageSize(totalSize);
-        stats.setAverageVersionSize(totalSize / versions.size());
-
-        // 类型统计
-        Map<String, Long> typeCount = versions.stream()
-                .collect(Collectors.groupingBy(
-                        WorkflowVersionEntity::getStatus,
-                        Collectors.counting()
-                ));
-        stats.setVersionTypeCount(typeCount);
-
-        // 用户统计
-        Map<String, Long> userCount = versions.stream()
-                .collect(Collectors.groupingBy(
-                        WorkflowVersionEntity::getCreatedBy,
-                        Collectors.counting()
-                ));
-        stats.setContributorCount(userCount);
-
-        // 计算版本活跃度
-        calculateVersionActivity(stats, versions);
-
-        return stats;
-    }
+//    public VersionStatistics getVersionStatistics(String workflowId) {
+//        VersionStatistics stats = new VersionStatistics();
+//        stats.setWorkflowId(workflowId);
+//        stats.setGeneratedTime(LocalDateTime.now());
+//
+//        // 获取所有版本
+//        List<WorkflowVersionEntity> versions = versionRepository
+//                .findByWorkflowIdOrderByVersionNumberAsc(workflowId);
+//
+//        if (versions.isEmpty()) {
+//            return stats;
+//        }
+//
+//        // 基本统计
+//        stats.setTotalVersions(versions.size());
+//        stats.setFirstVersion(versions.get(0).getVersionNumber());
+//        stats.setLatestVersion(versions.get(versions.size() - 1).getVersionNumber());
+//
+//        // 时间统计
+//        LocalDateTime firstDate = versions.get(0).getCreatedTime();
+//        LocalDateTime lastDate = versions.get(versions.size() - 1).getCreatedTime();
+////        long duration = lastDate.getTime() - firstDate.getTime();
+////        stats.setVersionDuration(duration);
+////        stats.setAverageVersionInterval(duration / Math.max(1, versions.size() - 1));
+//
+//        // 大小统计
+//        long totalSize = versions.stream().mapToLong(WorkflowVersionEntity::getDataSize).sum();
+//        stats.setTotalStorageSize(totalSize);
+//        stats.setAverageVersionSize(totalSize / versions.size());
+//
+//        // 类型统计
+//        Map<String, Long> typeCount = versions.stream()
+//                .collect(Collectors.groupingBy(
+//                        WorkflowVersionEntity::getStatus,
+//                        Collectors.counting()
+//                ));
+//        stats.setVersionTypeCount(typeCount);
+//
+//        // 用户统计
+//        Map<String, Long> userCount = versions.stream()
+//                .collect(Collectors.groupingBy(
+//                        WorkflowVersionEntity::getCreatedBy,
+//                        Collectors.counting()
+//                ));
+//        stats.setContributorCount(userCount);
+//
+//        // 计算版本活跃度
+//        calculateVersionActivity(stats, versions);
+//
+//        return stats;
+//    }
 
     /**
      * 清理旧版本
      */
     public int cleanupOldVersions(String workflowId, int keepLastVersions) {
         List<WorkflowVersionEntity> versions = versionRepository
-                .findByWorkflowIdOrderByVersionNumberDesc(workflowId);
+                .findByWorkflowIdOrderByVersionNumberDesc(Long.valueOf(workflowId));
 
         if (versions.size() <= keepLastVersions) {
             return 0;
@@ -514,7 +514,7 @@ public class WorkflowVersionManager {
 
             // 标记为已删除
             version.setStatus("deleted");
-            version.setDeletedTime(new Date());
+            version.setDeletedTime(LocalDateTime.now());
             versionRepository.save(version);
 
             removed++;
@@ -530,7 +530,7 @@ public class WorkflowVersionManager {
     // ========== 私有方法 ==========
 
     private Integer getNextVersionNumber(String workflowId) {
-        Integer maxVersion = versionRepository.findMaxVersionNumber(workflowId);
+        Integer maxVersion = versionRepository.findMaxVersionNumber(Long.valueOf(workflowId));
         return (maxVersion == null) ? 1 : maxVersion + 1;
     }
 
@@ -694,7 +694,7 @@ public class WorkflowVersionManager {
         version.getMetadata().put("compressed", compressionEnabled);
 
         if (version.getTags() != null) {
-            version.getMetadata().put("tagCount", version.getTags().size());
+            version.getMetadata().put("tagCount", version.getTags());
         }
     }
 
@@ -831,7 +831,7 @@ public class WorkflowVersionManager {
         result.setTargetVersion(targetVersion);
         result.setNewVersion(newVersion);
         result.setMergedBy(mergedBy);
-        result.setMergeTime(new Date());
+        result.setMergeTime(LocalDateTime.now());
         result.setMergeStrategy(strategy);
         result.setDescription(description);
         result.setSuccess(true);
@@ -848,24 +848,24 @@ public class WorkflowVersionManager {
         return new VersionTag();
     }
 
-    private void calculateVersionActivity(VersionStatistics stats, List<WorkflowVersionEntity> versions) {
-        // 计算版本活跃度
-        if (versions.size() < 2) {
-            stats.setActivityScore(0);
-            return;
-        }
-
-        long totalInterval = 0;
-        for (int i = 1; i < versions.size(); i++) {
-            long interval = versions.get(i).getCreatedTime().getTime() -
-                    versions.get(i-1).getCreatedTime().getTime();
-            totalInterval += interval;
-        }
-
-        long averageInterval = totalInterval / (versions.size() - 1);
-        double activity = 1.0 / (averageInterval / (24 * 60 * 60 * 1000.0)); // 每天版本数
-        stats.setActivityScore(activity);
-    }
+//    private void calculateVersionActivity(VersionStatistics stats, List<WorkflowVersionEntity> versions) {
+//        // 计算版本活跃度
+//        if (versions.size() < 2) {
+//            stats.setActivityScore(0);
+//            return;
+//        }
+//
+//        long totalInterval = 0;
+//        for (int i = 1; i < versions.size(); i++) {
+//            long interval = versions.get(i).getCreatedTime().getTime() -
+//                    versions.get(i-1).getCreatedTime().getTime();
+//            totalInterval += interval;
+//        }
+//
+//        long averageInterval = totalInterval / (versions.size() - 1);
+//        double activity = 1.0 / (averageInterval / (24 * 60 * 60 * 1000.0)); // 每天版本数
+//        stats.setActivityScore(activity);
+//    }
 
     // ========== 内部类 ==========
 
@@ -900,7 +900,7 @@ public class WorkflowVersionManager {
         private String workflowId;
         private int version1;
         private int version2;
-        private Date diffTime;
+        private LocalDateTime diffTime;
         private List<BasicChange> basicChanges;
         private List<NodeChange> nodeChanges;
         private List<ConnectionChange> connectionChanges;
@@ -961,7 +961,7 @@ public class WorkflowVersionManager {
         private int targetVersion;
         private int newVersion;
         private String mergedBy;
-        private Date mergeTime;
+        private LocalDateTime mergeTime;
         private String mergeStrategy;
         private String description;
         private boolean success;
@@ -980,7 +980,7 @@ public class WorkflowVersionManager {
         private String tagColor;
         private String description;
         private String createdBy;
-        private Date createdTime;
+        private LocalDateTime createdTime;
     }
 
     /**
@@ -989,7 +989,7 @@ public class WorkflowVersionManager {
     @Data
     public static class VersionStatistics {
         private String workflowId;
-        private Date generatedTime;
+        private LocalDateTime generatedTime;
         private int totalVersions;
         private int firstVersion;
         private int latestVersion;
