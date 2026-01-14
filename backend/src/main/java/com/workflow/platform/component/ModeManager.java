@@ -75,7 +75,7 @@ public class ModeManager {
     /**
      * 检查是否允许某种模式的操作
      */
-    public void checkModeAllowed(ModeType requiredMode) {
+    public void checkModeAllowed(ModeType requiredMode) throws ModeNotAllowedException {
         ModeType current = currentMode.get();
         if (current != requiredMode && current != ModeType.MIXED) {
             throw new ModeNotAllowedException(

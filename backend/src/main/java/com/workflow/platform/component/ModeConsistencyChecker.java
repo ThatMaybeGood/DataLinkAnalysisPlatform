@@ -333,11 +333,11 @@ public class ModeConsistencyChecker {
     }
 
     private void logInconsistentClients(ConsistencyReport report) {
-        for (ClientModeInfo info : report.getInconsistentClients()) {
-            log.warn("不一致客户端: ID={}, 模式={}, 最后心跳={}",
-                    info.getClientId(), info.getClientMode(),
-                    info.getLastHeartbeat());
-        }
+//        for (ClientModeInfo info : report.getInconsistentClients()) {
+//            log.warn("不一致客户端: ID={}, 模式={}, 最后心跳={}",
+//                    info.getClientId(), info.getClientMode(),
+//                    info.getLastHeartbeat());
+//        }
     }
 
     private void logRecoveryEvent() {
@@ -471,9 +471,7 @@ public class ModeConsistencyChecker {
         public double getConsistencyRate() { return consistencyRate; }
         public void setConsistencyRate(double consistencyRate) { this.consistencyRate = consistencyRate; }
 
-        public java.util.List<ClientModeInfo> getInconsistentClients() {
-            return inconsistentClientsList;
-        }
+
 
         public void addInconsistentClient(ClientModeInfo client) {
             this.inconsistentClientsList.add(client);

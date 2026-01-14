@@ -8,7 +8,9 @@ import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.Pattern;
 import javax.validation.constraints.Size;
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 工作流数据传输对象（DTO）
@@ -43,7 +45,7 @@ public class WorkflowDTO {
     private List<String> tags;
 
     @ApiModelProperty(value = "工作流配置（JSON格式）")
-    private String config;
+    private Map<String,Object> config;
 
     @ApiModelProperty(value = "状态: draft/active/inactive/archived", example = "active")
     private String status = "draft";
@@ -70,10 +72,10 @@ public class WorkflowDTO {
     private String tenantId;
 
     @ApiModelProperty(value = "创建时间", hidden = true)
-    private LocalDateTime createdAt;
+    private long createdAt;
 
     @ApiModelProperty(value = "更新时间", hidden = true)
-    private LocalDateTime updatedAt;
+    private long updatedAt;
 
     @ApiModelProperty(value = "创建人", hidden = true)
     private String createdBy;
@@ -81,8 +83,19 @@ public class WorkflowDTO {
     @ApiModelProperty(value = "更新人", hidden = true)
     private String updatedBy;
 
+    private List nodes;
+
+    private List connections;
+
+    private List validationRules;
+
+    private String templateId;
+
+    private String templateVersion;
+
     /**
      * 验证DTO数据的有效性
+     *
      * @return 验证结果，null表示验证通过，否则返回错误信息
      */
     public String validate() {
@@ -105,3 +118,4 @@ public class WorkflowDTO {
         return null;
     }
 }
+

@@ -17,7 +17,6 @@ import java.util.*;
 /**
  * 冲突解决策略接口
  */
-@Slf4j
 public interface ConflictResolutionStrategy {
 
     /**

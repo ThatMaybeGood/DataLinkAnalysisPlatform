@@ -1,5 +1,4 @@
-package vo;
-//工作流图VO
+package com.workflow.platform.model.vo;//工作流图VO
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.AllArgsConstructor;

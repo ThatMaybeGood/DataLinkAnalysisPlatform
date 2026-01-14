@@ -328,7 +328,7 @@ public class AuditLogManager {
                     export.setData(exportToXml(logs));
                     break;
                 case PDF:
-                    export.setData(exportToPdf(logs, stats));
+                    export.setData(Arrays.toString(exportToPdf(logs, stats)));
                     break;
             }
 
@@ -632,7 +632,7 @@ public class AuditLogManager {
             csv.append(escapeCsv(log.getLevel())).append(",");
             csv.append(escapeCsv(log.getOutcome())).append(",");
             csv.append(escapeCsv(log.getIpAddress())).append(",");
-            csv.append(escapeCsv(log.getDetails())).append("\n");
+            csv.append(escapeCsv((String) log.getDetails())).append("\n");
         }
 
         return csv.toString();

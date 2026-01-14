@@ -4,6 +4,8 @@ import com.workflow.platform.filter.ClientInfoFilter;
 import com.workflow.platform.filter.LogFilter;
 import com.workflow.platform.filter.ModeCheckFilter;
 import com.workflow.platform.interceptor.ModeConsistencyInterceptor;
+import com.workflow.platform.interceptor.ModeInterceptor;
+import com.workflow.platform.interceptor.RequestLogInterceptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
@@ -92,28 +94,10 @@ public class WebConfig implements WebMvcConfigurer {
         return new CorsFilter(source);
     }
 
-    @Bean
-    public FilterRegistrationBean<ModeCheckFilter> modeCheckFilter() {
-        FilterRegistrationBean<ModeCheckFilter> registrationBean = new FilterRegistrationBean<>();
-        registrationBean.setFilter(new ModeCheckFilter());
-        registrationBean.addUrlPatterns("/api/*");
-        registrationBean.setOrder(1);
-        return registrationBean;
-    }
+
 
     @Bean
-    public FilterRegistrationBean<LogFilter> logFilter() {
-        FilterRegistrationBean<LogFilter> registrationBean = new FilterRegistrationBean<>();
-        registrationBean.setFilter(new LogFilter());
-        registrationBean.addUrlPatterns("/api/*");
-        registrationBean.setOrder(2);
-        return registrationBean;
-    }
-
-
-
-    @Override
-    public void addInterceptors(InterceptorRegistry registry) {
+    public void addModeInterceptors(InterceptorRegistry registry) {
         // 添加模式一致性拦截器
         registry.addInterceptor(modeConsistencyInterceptor)
                 .addPathPatterns("/api/**")

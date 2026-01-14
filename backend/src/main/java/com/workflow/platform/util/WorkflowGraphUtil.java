@@ -4,7 +4,6 @@ package com.workflow.platform.util;
 import com.workflow.platform.model.vo.WorkflowGraphVO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
-
 import java.util.*;
 import java.util.stream.Collectors;
 
