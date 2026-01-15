@@ -9,6 +9,7 @@ import com.workflow.platform.util.JsonUtil;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.poi.ss.formula.functions.T;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -219,7 +220,7 @@ public class WorkflowVersionManager {
                 rollbackVersion.setRollbackReason(reason);
 
                 // 存储回滚版本数据
-                String versionData = jsonUtil.toJson(targetWorkflow);
+                String versionData = JsonUtil.toJson(targetWorkflow);
                 if (compressionEnabled) {
                     versionData = compressData(versionData);
                 }
@@ -291,7 +292,7 @@ public class WorkflowVersionManager {
                 branchVersion.setBasedOnVersion(baseVersion);
 
                 // 存储分支数据
-                String versionData = jsonUtil.toJson(baseWorkflow);
+                String versionData = JsonUtil.toJson(baseWorkflow);
                 if (compressionEnabled) {
                     versionData = compressData(versionData);
                 }
@@ -359,7 +360,7 @@ public class WorkflowVersionManager {
                 mergeVersion.setMergeBaseVersion(targetVersion);
 
                 // 存储合并数据
-                String versionData = jsonUtil.toJson(mergedWorkflow);
+                String versionData = JsonUtil.toJson(mergedWorkflow);
                 if (compressionEnabled) {
                     versionData = compressData(versionData);
                 }
@@ -535,7 +536,7 @@ public class WorkflowVersionManager {
     }
 
     private String prepareVersionData(WorkflowDTO workflow, WorkflowVersionEntity previousVersion) {
-        String versionData = jsonUtil.toJson(workflow);
+        String versionData = JsonUtil.toJson(workflow);
 
         if (deltaStorage && previousVersion != null) {
             // 增量存储：只存储变化部分
@@ -562,7 +563,7 @@ public class WorkflowVersionManager {
             versionData = decompressData(versionData);
         }
 
-        WorkflowDTO workflow = jsonUtil.fromJson(versionData, WorkflowDTO.class);
+        WorkflowDTO workflow = JsonUtil.fromJson(versionData, WorkflowDTO.class);
 
         // 恢复增量数据（如果需要）
         if (deltaStorage && isDeltaData(versionData)) {
@@ -596,7 +597,9 @@ public class WorkflowVersionManager {
         StringBuilder hexString = new StringBuilder();
         for (byte b : bytes) {
             String hex = Integer.toHexString(0xff & b);
-            if (hex.length() == 1) hexString.append('0');
+            if (hex.length() == 1){
+                hexString.append('0');
+            };
             hexString.append(hex);
         }
         return hexString.toString();
@@ -639,7 +642,7 @@ public class WorkflowVersionManager {
     private String calculateDelta(WorkflowDTO oldVersion, WorkflowDTO newVersion) {
         // 实现差异计算算法
         // 这里简化为返回完整数据
-        return jsonUtil.toJson(newVersion);
+        return JsonUtil.toJson(newVersion);
     }
 
     private boolean isDeltaData(String data) {
@@ -699,8 +702,8 @@ public class WorkflowVersionManager {
     }
 
     private String formatSize(long bytes) {
-        if (bytes < 1024) return bytes + " B";
-        if (bytes < 1024 * 1024) return String.format("%.1f KB", bytes / 1024.0);
+        if (bytes < 1024) {return bytes + " B";}
+        if (bytes < 1024 * 1024) {return String.format("%.1f KB", bytes / 1024.0);}
         return String.format("%.1f MB", bytes / (1024.0 * 1024.0));
     }
 
@@ -810,7 +813,7 @@ public class WorkflowVersionManager {
     private <T> List<T> mergeLists(List<T> list1, List<T> list2) {
         List<T> merged = new ArrayList<>();
 
-        if (list1 != null) merged.addAll(list1);
+        if (list1 != null) {merged.addAll(list1);}
         if (list2 != null) {
             for (T item : list2) {
                 if (!merged.contains(item)) {

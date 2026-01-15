@@ -191,7 +191,7 @@ public class DataCompressionUtil {
     /**
      * 检测压缩算法
      */
-    private CompressionAlgorithm detectCompressionAlgorithm(byte[] data) {
+    public CompressionAlgorithm detectCompressionAlgorithm(byte[] data) {
         if (data == null || data.length < 2) {
             return CompressionAlgorithm.NONE;
         }

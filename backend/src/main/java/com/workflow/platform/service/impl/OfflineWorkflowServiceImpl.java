@@ -65,7 +65,7 @@ public class OfflineWorkflowServiceImpl implements WorkflowService {
 
             // 2. 设置离线模式特定字段
             workflowDTO.setMode("offline");
-            workflowDTO.setCreatedAt(LocalDateTime.now());
+            workflowDTO.setCreatedAt(System.currentTimeMillis());
             workflowDTO.setCreatedBy("offline_user");
 
             // 3. 保存到文件系统
@@ -104,7 +104,7 @@ public class OfflineWorkflowServiceImpl implements WorkflowService {
             workflowDTO.setId(id);
             workflowDTO.setCreatedAt(existingWorkflow.get().getCreatedAt());
             workflowDTO.setCreatedBy(existingWorkflow.get().getCreatedBy());
-            workflowDTO.setUpdatedAt(LocalDateTime.now());
+            workflowDTO.setUpdatedAt(System.currentTimeMillis());
             workflowDTO.setUpdatedBy("offline_user");
             workflowDTO.setMode("offline");
 
@@ -358,7 +358,7 @@ public class OfflineWorkflowServiceImpl implements WorkflowService {
 
             // 4. 设置导入相关字段
             workflowDTO.setId(null); // 生成新ID
-            workflowDTO.setImportedAt(LocalDateTime.now());
+            workflowDTO.setImportedAt(System.currentTimeMillis());
             workflowDTO.setMode("offline");
 
             // 5. 创建工作流
@@ -697,7 +697,7 @@ public class OfflineWorkflowServiceImpl implements WorkflowService {
                 workflow.setSuccessRate(95.5);
             }
 
-            workflow.setUpdatedAt(LocalDateTime.now());
+            workflow.setUpdatedAt(System.currentTimeMillis());
             workflow.setUpdatedBy("offline_user");
 
             workflowRepository.save(workflow);

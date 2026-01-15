@@ -2,6 +2,7 @@ package com.workflow.platform.model.dto;
 
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
+import lombok.Builder;
 import lombok.Data;
 
 import javax.validation.constraints.NotBlank;
@@ -17,6 +18,7 @@ import java.util.Map;
  * 用于前端与后端之间的数据传输
  */
 @Data
+@Builder
 @ApiModel(description = "工作流数据传输对象")
 public class WorkflowDTO {
 
@@ -72,10 +74,10 @@ public class WorkflowDTO {
     private String tenantId;
 
     @ApiModelProperty(value = "创建时间", hidden = true)
-    private long createdAt;
+    private Long createdAt;
 
     @ApiModelProperty(value = "更新时间", hidden = true)
-    private long updatedAt;
+    private Long updatedAt;
 
     @ApiModelProperty(value = "创建人", hidden = true)
     private String createdBy;
@@ -93,11 +95,16 @@ public class WorkflowDTO {
 
     private String templateVersion;
 
+
     private String branchId;
     private String branchName;
     private Integer basedOnVersion;
     private LocalDateTime branchCreatedTime;
     private String branchCreatedBy;
+
+    private Long importedAt;
+    private String importSource;
+    private Map<String, Object> importData;
 
     /**
      * 验证DTO数据的有效性

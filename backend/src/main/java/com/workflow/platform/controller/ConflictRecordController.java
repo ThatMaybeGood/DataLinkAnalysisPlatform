@@ -93,11 +93,12 @@ public class ConflictRecordController {
                 objectType, objectId, status, page, size);
 
         Map<String, Object> queryParams = new HashMap<>();
-        if (objectType != null) queryParams.put("objectType", objectType);
-        if (objectId != null) queryParams.put("objectId", objectId);
-        if (conflictType != null) queryParams.put("conflictType", conflictType);
-        if (status != null) queryParams.put("status", status);
-        if (severity != null) queryParams.put("severity", severity);
+        if (objectType != null)
+        {queryParams.put("objectType", objectType);}
+        if (objectId != null) {queryParams.put("objectId", objectId);}
+        if (conflictType != null) {queryParams.put("conflictType", conflictType);}
+        if (status != null){ queryParams.put("status", status);}
+        if (severity != null) {queryParams.put("severity", severity);}
 
         Page<ConflictRecordVO> conflictRecords = conflictRecordService.getConflictRecords(queryParams, page, size);
         return ResponseEntity.ok(conflictRecords);
@@ -263,7 +264,7 @@ public class ConflictRecordController {
             endTime = LocalDateTime.now();
         }
 
-        String report = conflictRecordService.generateConflictReport(startTime, endTime, format).join();
+        String report = conflictRecordService.generateConflictReport(startTime, endTime, format);
         return ResponseEntity.ok(report);
     }
 

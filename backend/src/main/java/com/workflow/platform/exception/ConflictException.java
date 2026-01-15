@@ -1,6 +1,7 @@
 package com.workflow.platform.exception;
 
 import com.workflow.platform.constants.ErrorCodeConstants;
+import com.workflow.platform.model.entity.ConflictRecordEntity;
 import lombok.Getter;
 
 import java.util.Map;
@@ -30,6 +31,15 @@ public class ConflictException extends RuntimeException {
         super(message);
         this.errorCode = ErrorCodeConstants.SYNC_CONFLICT;
         this.conflictType = conflictType;
+        this.localData = null;
+        this.remoteData = null;
+        this.resolutionSuggestion = null;
+    }
+
+    public ConflictException(String message, ConflictRecordEntity conflictType) {
+        super(message);
+        this.errorCode = ErrorCodeConstants.SYNC_CONFLICT;
+        this.conflictType = String.valueOf(conflictType);
         this.localData = null;
         this.remoteData = null;
         this.resolutionSuggestion = null;

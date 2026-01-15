@@ -1,6 +1,5 @@
 package com.workflow.platform.model.entity;
 
-import entity.ExecutionEntity;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 

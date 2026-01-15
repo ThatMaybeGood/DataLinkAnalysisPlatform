@@ -2,10 +2,11 @@ package com.workflow.platform.repository;
 
 import com.workflow.platform.component.AuditLogManager;
 import com.workflow.platform.model.entity.AuditLogEntity;
+import org.springframework.stereotype.Repository;
 
 import java.util.List;
 import java.util.Map;
-
+@Repository
 public class AuditLogRepository {
     public List<AuditLogEntity> findByCriteria(String userId, String action, String resourceType, String resourceId, String level, Long startTime, Long endTime, AuditLogManager.Pageable pageable) {
         return null;

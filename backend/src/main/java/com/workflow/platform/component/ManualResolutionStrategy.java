@@ -1,5 +1,6 @@
 package com.workflow.platform.component;
 
+import com.workflow.platform.constants.ConflictStatus;
 import com.workflow.platform.enums.ConflictResolutionType;
 import com.workflow.platform.exception.ConflictException;
 import com.workflow.platform.model.dto.SyncTaskDTO;

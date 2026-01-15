@@ -224,11 +224,11 @@ workflow-visualization-platform/
 │       │   │   ├── 📄 basic-workflow.json
 │       │   │   ├── 📄 approval-workflow.json
 │       │   │   └── 📄 data-processing-workflow.json
-│       │   ├── 📂 node/
-│       │   │   ├── 📄 start-node.json
-│       │   │   ├── 📄 end-node.json
-│       │   │   ├── 📄 action-node.json
-│       │   │   └── 📄 decision-node.json
+│       │   ├── 📂 nodeEntity/
+│       │   │   ├── 📄 start-nodeEntity.json
+│       │   │   ├── 📄 end-nodeEntity.json
+│       │   │   ├── 📄 action-nodeEntity.json
+│       │   │   └── 📄 decision-nodeEntity.json
 │       │   └── 📂 validation/
 │       │       ├── 📄 required-rule.json
 │       │       ├── 📄 format-rule.json
@@ -250,13 +250,13 @@ workflow-visualization-platform/
 │       │   │   ├── 📄 email-validation.json
 │       │   │   ├── 📄 phone-validation.json
 │       │   │   └── 📄 date-validation.json
-│       │   └── 📂 node-templates/
-│       │       ├── 📄 api-call-node.json
-│       │       ├── 📄 database-node.json
-│       │       └── 📄 notification-node.json
+│       │   └── 📂 nodeEntity-templates/
+│       │       ├── 📄 api-call-nodeEntity.json
+│       │       ├── 📄 database-nodeEntity.json
+│       │       └── 📄 notification-nodeEntity.json
 │       ├── 📂 offline-templates/         # 离线模板
 │       │   ├── 📄 workflow-template.json
-│       │   ├── 📄 node-template.json
+│       │   ├── 📄 nodeEntity-template.json
 │       │   ├── 📄 validation-template.json
 │       │   └── 📄 sync-config-template.json
 │       └── 📂 i18n/                      # 国际化
@@ -272,14 +272,14 @@ workflow-visualization-platform/
 │   │       ├── 📂 images/
 │   │       │   ├── 📄 logo.png
 │   │       │   ├── 📄 workflow-icon.png
-│   │       │   └── 📄 node-icons/
+│   │       │   └── 📄 nodeEntity-icons/
 │   │       └── 📂 fonts/
 │   │           └── ...字体文件
 │   ├── 📂 src/
 │   │   ├── 📂 assets/                    # 静态资源
 │   │   │   ├── 📂 images/
 │   │   │   │   ├── 📄 workflow-bg.jpg
-│   │   │   │   ├── 📄 node-icons/
+│   │   │   │   ├── 📄 nodeEntity-icons/
 │   │   │   │   └── 📄 ui-icons/
 │   │   │   └── 📂 styles/
 │   │   │       ├── 📄 global.css
@@ -389,7 +389,7 @@ workflow-visualization-platform/
 │   │   │   └── 📄 dateUtils.js
 │   │   ├── 📂 types/                     # TypeScript类型定义
 │   │   │   ├── 📄 workflow.ts
-│   │   │   ├── 📄 node.ts
+│   │   │   ├── 📄 nodeEntity.ts
 │   │   │   ├── 📄 coordination.ts
 │   │   │   ├── 📄 sync.ts
 │   │   │   └── 📄 common.ts
@@ -433,7 +433,7 @@ workflow-visualization-platform/
 ├── 📂 docs/                              # 文档
 │   ├── 📂 api/                           # API文档
 │   │   ├── 📄 workflow-api.md
-│   │   ├── 📄 node-api.md
+│   │   ├── 📄 nodeEntity-api.md
 │   │   ├── 📄 sync-api.md
 │   │   ├── 📄 coordination-api.md
 │   │   └── 📄 api-overview.md
@@ -453,9 +453,9 @@ workflow-visualization-platform/
 │   │   │   ├── 📄 data-validation.json
 │   │   │   └── 📄 approval-workflow.json
 │   │   ├── 📂 nodes/
-│   │   │   ├── 📄 api-call-node.json
-│   │   │   ├── 📄 database-node.json
-│   │   │   └── 📄 notification-node.json
+│   │   │   ├── 📄 api-call-nodeEntity.json
+│   │   │   ├── 📄 database-nodeEntity.json
+│   │   │   └── 📄 notification-nodeEntity.json
 │   │   └── 📂 configurations/
 │   │       ├── 📄 offline-config.json
 │   │       ├── 📄 sync-config.json

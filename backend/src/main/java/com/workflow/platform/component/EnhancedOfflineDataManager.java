@@ -55,8 +55,7 @@ public class EnhancedOfflineDataManager extends OfflineDataManager {
     /**
      * 保存工作流（增强版：压缩+加密）
      */
-    @Override
-    public boolean saveWorkflow(WorkflowEntity workflow) {
+     public boolean saveWorkflow(WorkflowEntity workflow) {
         try {
             // 转换为JSON
             String workflowJson = JsonUtil.toJson(workflow);
@@ -66,7 +65,7 @@ public class EnhancedOfflineDataManager extends OfflineDataManager {
 
             // 保存到文件
             String fileName = generateSecureFileName(workflow.getId().toString(), "workflow");
-            Path filePath = getWorkflowFilePath(fileName);
+            Path filePath = Path.of(getWorkflowFilePath(fileName));
 
             Files.write(filePath, securedData);
 
@@ -116,7 +115,7 @@ public class EnhancedOfflineDataManager extends OfflineDataManager {
 
                 if (securedData != null) {
                     String fileName = generateSecureFileName(workflowId, "workflow");
-                    Path filePath = getWorkflowFilePath(fileName);
+                    Path filePath = Path.of(getWorkflowFilePath(fileName));
 
                     Files.write(filePath, securedData);
 
@@ -134,11 +133,14 @@ public class EnhancedOfflineDataManager extends OfflineDataManager {
         }
     }
 
+    private void updateFileIndex(String fileName, String workflowId, String workflow, int length, boolean b) {
+    }
+
     /**
      * 读取工作流（增强版：解密+解压）
      */
-    @Override
-    public WorkflowEntity loadWorkflow(String workflowId) {
+//    @Override
+    public WorkflowEntity loadWorkflow_(String workflowId) {
         try {
             // 从文件索引查找文件
             String fileName = findFileNameById(workflowId, "workflow");
@@ -147,7 +149,7 @@ public class EnhancedOfflineDataManager extends OfflineDataManager {
                 return null;
             }
 
-            Path filePath = getWorkflowFilePath(fileName);
+            Path filePath = Path.of(getWorkflowFilePath(fileName));
             if (!Files.exists(filePath)) {
                 log.warn("工作流文件不存在，路径: {}", filePath);
                 return null;
@@ -170,6 +172,10 @@ public class EnhancedOfflineDataManager extends OfflineDataManager {
             log.error("增强版加载工作流失败，ID: {}", workflowId, e);
             return null;
         }
+    }
+
+    private String findFileNameById(String workflowId, String workflow) {
+        return null;
     }
 
     /**
@@ -418,6 +424,10 @@ public class EnhancedOfflineDataManager extends OfflineDataManager {
                 backupFileName, Files.size(backupPath));
 
         return backupPath.toString();
+    }
+
+    private String getOfflineBasePath() {
+        return null;
     }
 
     /**

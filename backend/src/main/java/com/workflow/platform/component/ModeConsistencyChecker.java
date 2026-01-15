@@ -256,7 +256,7 @@ public class ModeConsistencyChecker {
         }
     }
 
-    private boolean checkConsistency(ModeType clientMode) {
+    public boolean checkConsistency(ModeType clientMode) {
         ModeType serverMode = modeManager.getCurrentMode();
 
         // 检查逻辑：

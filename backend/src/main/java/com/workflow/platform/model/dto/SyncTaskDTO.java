@@ -1,5 +1,6 @@
 package com.workflow.platform.model.dto;
 
+import com.workflow.platform.enums.ConflictResolutionType;
 import com.workflow.platform.enums.SyncStatus;
 import lombok.Data;
 
@@ -25,6 +26,7 @@ public class SyncTaskDTO {
     private long startTime;
     private long endTime;
     private Map<String, Object> metadata;
+    private ConflictResolutionType conflictResolutionType; // 冲突解决策略类型
 
     // 任务类型常量
     public static final String TYPE_WORKFLOW = "workflow";

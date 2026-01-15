@@ -286,11 +286,11 @@ public class WorkflowGraphManager {
 
             int levelWidth = 800;
             int xSpacing = levelWidth / Math.max(1, levelNodeList.size() + 1);
-            int y = level * levelHeight + 100;
+            double y = level * levelHeight + 100;
 
             for (int i = 0; i < levelNodeList.size(); i++) {
                 Node node = levelNodeList.get(i);
-                int x = xSpacing * (i + 1);
+                double x = xSpacing * (i + 1);
 
                 GraphLayout.NodePosition position = new GraphLayout.NodePosition();
                 position.setX(x);

@@ -436,11 +436,11 @@
                     <jvmArguments>-Dapp.mode=${activatedProperties}</jvmArguments>
                 </configuration>
                 <executions>
-                    <execution>
+                    <executionEntity>
                         <goals>
                             <goal>repackage</goal>
                         </goals>
-                    </execution>
+                    </executionEntity>
                 </executions>
             </plugin>
 
@@ -493,12 +493,12 @@
                 <artifactId>maven-source-plugin</artifactId>
                 <version>3.2.1</version>
                 <executions>
-                    <execution>
+                    <executionEntity>
                         <id>attach-sources</id>
                         <goals>
                             <goal>jar-no-fork</goal>
                         </goals>
-                    </execution>
+                    </executionEntity>
                 </executions>
             </plugin>
 
@@ -508,12 +508,12 @@
                 <artifactId>maven-javadoc-plugin</artifactId>
                 <version>3.5.0</version>
                 <executions>
-                    <execution>
+                    <executionEntity>
                         <id>attach-javadocs</id>
                         <goals>
                             <goal>jar</goal>
                         </goals>
-                    </execution>
+                    </executionEntity>
                 </executions>
             </plugin>
 
@@ -554,12 +554,12 @@
                     </container>
                 </configuration>
                 <executions>
-                    <execution>
+                    <executionEntity>
                         <phase>package</phase>
                         <goals>
                             <goal>dockerBuild</goal>
                         </goals>
-                    </execution>
+                    </executionEntity>
                 </executions>
             </plugin>
             <plugin>
@@ -567,7 +567,7 @@
                 <artifactId>kotlin-maven-plugin</artifactId>
                 <version>${kotlin.version}</version>
                 <executions>
-                    <execution>
+                    <executionEntity>
                         <id>compile</id>
                         <phase>compile</phase>
                         <goals>
@@ -579,14 +579,14 @@
                                 <source>target/generated-sources/annotations</source>
                             </sourceDirs>
                         </configuration>
-                    </execution>
-                    <execution>
+                    </executionEntity>
+                    <executionEntity>
                         <id>test-compile</id>
                         <phase>test-compile</phase>
                         <goals>
                             <goal>test-compile</goal>
                         </goals>
-                    </execution>
+                    </executionEntity>
                 </executions>
                 <configuration>
                     <jvmTarget>${maven.compiler.target}</jvmTarget>
@@ -597,20 +597,20 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.11.0</version>
                 <executions>
-                    <execution>
+                    <executionEntity>
                         <id>compile</id>
                         <phase>compile</phase>
                         <goals>
                             <goal>compile</goal>
                         </goals>
-                    </execution>
-                    <execution>
+                    </executionEntity>
+                    <executionEntity>
                         <id>testCompile</id>
                         <phase>test-compile</phase>
                         <goals>
                             <goal>testCompile</goal>
                         </goals>
-                    </execution>
+                    </executionEntity>
                 </executions>
                 <configuration>
                     <source>${java.version}</source>

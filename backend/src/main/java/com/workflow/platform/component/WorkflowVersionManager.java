@@ -223,8 +223,8 @@ public class WorkflowVersionManager {
             branchWorkflow.setId(generateBranchId(workflowId, branchName));
             branchWorkflow.setName(branchWorkflow.getName() + " - " + branchName);
             branchWorkflow.setDescription(description);
-            branchWorkflow.setBranch(branchName);
-            branchWorkflow.setBaseVersion(baseVersion);
+            branchWorkflow.setBranchName(branchName);
+            branchWorkflow.setBasedOnVersion(baseVersion);
 
             // 创建分支版本
             WorkflowVersionDTO branchVersion = WorkflowVersionDTO.builder()
@@ -1094,7 +1094,7 @@ public class WorkflowVersionManager {
         public void setExportTime(long exportTime) { this.exportTime = exportTime; }
 
         public ExportFormat getFormat() { return format; }
-        public void setExportFormat(ExportFormat format) { this.format = format; }
+        public void setFormat(ExportFormat format) { this.format = format; }
 
         public List<WorkflowVersionDTO> getVersions() { return versions; }
         public void setVersions(List<WorkflowVersionDTO> versions) { this.versions = versions; }

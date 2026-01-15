@@ -731,7 +731,7 @@ public class OfflineDataManager {
         return offlinePath + SystemConstants.BACKUP_DIR;
     }
 
-    private String getWorkflowFilePath(String workflowId) {
+    String getWorkflowFilePath(String workflowId) {
         return getWorkflowDir() + "/" + workflowId + SystemConstants.JSON_EXT;
     }
 

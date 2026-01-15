@@ -1,14 +1,18 @@
 package com.workflow.platform.service.impl;
 
 import com.workflow.platform.annotation.RequireMode;
-import com.workflow.platform.model.dto.WorkflowDTO;
-import com.workflow.platform.model.dto.WorkflowQueryDTO;
+import com.workflow.platform.engine.WorkflowEngine;
+import com.workflow.platform.model.dto.*;
+import com.workflow.platform.model.entity.NodeEntity;
+import com.workflow.platform.model.entity.ValidationRuleEntity;
 import com.workflow.platform.model.entity.WorkflowEntity;
+import com.workflow.platform.model.vo.WorkflowConverter;
 import com.workflow.platform.model.vo.WorkflowVO;
 import com.workflow.platform.repository.WorkflowRepository;
-import com.workflow.platform.service.WorkflowService;
+import com.workflow.platform.service.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.Closure;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -19,11 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import javax.persistence.criteria.Predicate;
-import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 
 /**
  * 在线工作流服务实现
@@ -38,6 +38,13 @@ public class OnlineWorkflowServiceImpl implements WorkflowService {
 
     private final WorkflowRepository workflowRepository;
     private final WorkflowConverter workflowConverter;
+
+     NodeService nodeService;
+     ValidationService validationService;
+     FileStorageService fileStorageService;
+     ExecutionService executionService;
+
+     AuditService auditService;
 
     // ========== 基础CRUD操作 ==========
 
@@ -61,8 +68,8 @@ public class OnlineWorkflowServiceImpl implements WorkflowService {
         workflowDTO.setId(workflowId);
 
         // 4. 设置默认值
-        workflowDTO.setCreatedAt(LocalDateTime.now());
-        workflowDTO.setUpdatedAt(LocalDateTime.now());
+        workflowDTO.setCreatedAt(System.currentTimeMillis());
+        workflowDTO.setUpdatedAt(System.currentTimeMillis());
         workflowDTO.setCreatedBy(getCurrentUser());
 
         // 5. 转换为实体并保存
@@ -98,7 +105,7 @@ public class OnlineWorkflowServiceImpl implements WorkflowService {
 
         // 4. 更新字段
         workflowConverter.updateEntity(entity, workflowDTO);
-        entity.setUpdatedAt(LocalDateTime.now());
+        entity.setUpdatedAt(System.currentTimeMillis());
         entity.setUpdatedBy(getCurrentUser());
 
         // 5. 保存更新
@@ -231,17 +238,18 @@ public class OnlineWorkflowServiceImpl implements WorkflowService {
             throw new BusinessException("工作流未激活，无法执行");
         }
 
-        // 3. 创建执行记录
+
         ExecutionRecord execution = createExecutionRecord(id, parameters);
 
         try {
+            WorkflowEngine workflowEngine = new WorkflowEngine();
             // 4. 执行工作流逻辑
-            Object result = workflowEngine.execute(entity, parameters);
+            Object result = workflowEngine.execute(entity, (Map<String, Object>) parameters);
 
             // 5. 更新执行记录
             execution.setStatus("completed");
             execution.setResult(result);
-            execution.setEndTime(LocalDateTime.now());
+            execution.setEndTime(System.currentTimeMillis());
 
             // 6. 更新工作流统计信息
             updateWorkflowStatistics(entity, execution);
@@ -254,7 +262,7 @@ public class OnlineWorkflowServiceImpl implements WorkflowService {
             // 7. 执行失败处理
             execution.setStatus("failed");
             execution.setErrorMessage(e.getMessage());
-            execution.setEndTime(LocalDateTime.now());
+            execution.setEndTime(System.currentTimeMillis());
 
             log.error("在线工作流执行失败: {}", id, e);
             throw new BusinessException("工作流执行失败: " + e.getMessage(), e);
@@ -284,13 +292,15 @@ public class OnlineWorkflowServiceImpl implements WorkflowService {
         // 2. 获取相关数据
         List<NodeEntity> nodes = nodeService.getNodesByWorkflowId(id);
         List<ValidationRuleEntity> rules = validationService.getRulesByWorkflowId(id);
+        NodeConverter nodeConverter = new NodeConverter();
+        RuleConverter ruleConverter = new RuleConverter();
 
-        // 3. 构建导出数据
-        WorkflowExportData exportData = WorkflowExportData.builder()
+        // 3. 构建导出数据对象
+        WorkflowExportDataDTO exportData = WorkflowExportDataDTO.builder()
                 .workflow(workflowConverter.toDTO(entity))
                 .nodes(nodes.stream().map(nodeConverter::toDTO).toList())
                 .validationRules(rules.stream().map(ruleConverter::toDTO).toList())
-                .exportTime(LocalDateTime.now())
+                .exportTime(System.currentTimeMillis())
                 .version("1.0")
                 .build();
 
@@ -308,7 +318,7 @@ public class OnlineWorkflowServiceImpl implements WorkflowService {
         log.info("导入工作流文件: {}", filePath);
 
         // 1. 读取文件
-        WorkflowExportData importData = fileStorageService.importFromFile(filePath);
+        WorkflowExportDataDTO importData = fileStorageService.importFromFile(filePath);
 
         // 2. 验证导入数据
         validateImportData(importData);
@@ -319,6 +329,9 @@ public class OnlineWorkflowServiceImpl implements WorkflowService {
         workflowDTO.setMode("online");
 
         return createWorkflow(workflowDTO);
+    }
+
+    private void validateImportData(WorkflowExportDataDTO importData) {
     }
 
     @Override
@@ -437,7 +450,7 @@ public class OnlineWorkflowServiceImpl implements WorkflowService {
         execution.setWorkflowId(workflowId);
         execution.setParameters(parameters);
         execution.setStatus("running");
-        execution.setStartTime(LocalDateTime.now());
+        execution.setStartTime(System.currentTimeMillis());
         execution.setCreatedBy(getCurrentUser());
 
         executionService.save(execution);
@@ -490,4 +503,6 @@ public class OnlineWorkflowServiceImpl implements WorkflowService {
             super(message, cause);
         }
     }
+
+
 }

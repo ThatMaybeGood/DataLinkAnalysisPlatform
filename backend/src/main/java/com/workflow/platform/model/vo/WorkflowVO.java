@@ -65,11 +65,11 @@ public class WorkflowVO {
 
     @ApiModelProperty(value = "创建时间")
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
-    private LocalDateTime createdAt;
+    private Long createdAt;
 
     @ApiModelProperty(value = "更新时间")
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
-    private LocalDateTime updatedAt;
+    private Long updatedAt;
 
     @ApiModelProperty(value = "创建人")
     private String createdBy;

@@ -16,13 +16,13 @@ public abstract class BaseEntity {
      * 创建时间
      */
     @Column(name = "created_at", updatable = false)
-    private LocalDateTime createdAt;
+    private Long createdAt;
 
     /**
      * 更新时间
      */
     @Column(name = "updated_at")
-    private LocalDateTime updatedAt;
+    private Long updatedAt;
 
     /**
      * 创建人
@@ -42,9 +42,9 @@ public abstract class BaseEntity {
     @PrePersist
     protected void onCreate() {
         if (createdAt == null) {
-            createdAt = LocalDateTime.now();
+            createdAt = System.currentTimeMillis();
         }
-        updatedAt = LocalDateTime.now();
+        updatedAt = System.currentTimeMillis();
     }
 
     /**
@@ -52,6 +52,6 @@ public abstract class BaseEntity {
      */
     @PreUpdate
     protected void onUpdate() {
-        updatedAt = LocalDateTime.now();
+        updatedAt = System.currentTimeMillis();
     }
 }

@@ -58,10 +58,13 @@ package com.workflow.platform.model.dto;
 
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
+import lombok.Builder;
 import lombok.Data;
 
 import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.NotNull;
+import java.util.List;
+import java.util.Map;
 
 /**
  * 工作流版本数据传输对象
@@ -74,12 +77,13 @@ import javax.validation.constraints.NotNull;
  *
  */
 @Data
+@Builder
 @ApiModel(description = "工作流版本数据传输对象")
 public class WorkflowVersionDTO {
 
     @ApiModelProperty(value = "工作流ID", required = true, example = "1")
     @NotNull(message = "工作流ID不能为空")
-    private Long workflowId;
+    private String workflowId;
 
     @ApiModelProperty(value = "版本名称", example = "v1.0.0")
     private String versionName;
@@ -91,7 +95,7 @@ public class WorkflowVersionDTO {
     private String changeSummary;
 
     @ApiModelProperty(value = "工作流数据（JSON格式）")
-    private String workflowData;
+    private WorkflowDTO workflowData;
 
     @ApiModelProperty(value = "节点数据（JSON格式）")
     private String nodeData;
@@ -103,7 +107,7 @@ public class WorkflowVersionDTO {
     private String createdBy;
 
     @ApiModelProperty(value = "版本标签", example = "stable,draft")
-    private String tags;
+    private List<String> tags;
 
     @ApiModelProperty(value = "是否设置为当前版本", example = "true")
     private Boolean setAsCurrent = true;
@@ -115,8 +119,38 @@ public class WorkflowVersionDTO {
     private Boolean includeMetadata = true;
 
     @ApiModelProperty(value = "自定义元数据")
-    private String metadata;
+    private Map<String, Object> metadata;
 
     @ApiModelProperty(value = "版本类型", example = "MAJOR", allowableValues = "MAJOR,MINOR,PATCH,CUSTOM")
     private String versionType;
+
+    private String id;
+
+    private int versionNumber;
+
+    private String versionTag;
+
+    private long createdAt;
+
+    private String checksum;
+
+    private long size;
+
+    private String restoredBy;
+
+    private Long restoredAt;
+
+    private Integer restoreCount;
+
+    private Map<String, Object> changeSummaryMap;
+
+    private Integer changeCount;
+
+    // 分支相关
+    private boolean isBranch;
+    private String branchName;
+    private String baseWorkflowId;
+    private Integer baseVersion;
+
+
 }

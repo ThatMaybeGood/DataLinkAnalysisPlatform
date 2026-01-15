@@ -9,9 +9,11 @@ package com.workflow.platform.service;
 
 import com.workflow.platform.model.dto.ConflictRecordDTO;
 //import com.workflow.platform.model.dto.ConflictResolutionDTO;
+import com.workflow.platform.model.dto.ConflictResolutionDTO;
 import com.workflow.platform.model.entity.ConflictRecordEntity;
 import com.workflow.platform.model.vo.ConflictRecordVO;
 //import com.workflow.platform.model.vo.ConflictStatisticsVO;
+import com.workflow.platform.model.vo.ConflictStatisticsVO;
 import org.springframework.data.domain.Page;
 
 import java.time.LocalDateTime;
@@ -48,15 +50,15 @@ public interface ConflictRecordService {
      */
     List<ConflictRecordVO> queryConflictRecords(Map<String, Object> criteria);
 
-//    /**
-//     * 解决冲突
-//     */
-//    ConflictRecordVO resolveConflict(ConflictResolutionDTO resolutionDTO);
-//
-//    /**
-//     * 批量解决冲突
-//     */
-//    List<ConflictRecordVO> batchResolveConflicts(List<ConflictResolutionDTO> resolutionDTOs);
+    /**
+     * 解决冲突
+     */
+    ConflictRecordVO resolveConflict(ConflictResolutionDTO resolutionDTO);
+
+    /**
+     * 批量解决冲突
+     */
+    List<ConflictRecordVO> batchResolveConflicts(List<ConflictResolutionDTO> resolutionDTOs);
 
     /**
      * 忽略冲突
@@ -88,10 +90,10 @@ public interface ConflictRecordService {
      */
     List<ConflictRecordVO> getHighPriorityConflicts();
 
-//    /**
-//     * 统计冲突信息
-//     */
-//    ConflictStatisticsVO getConflictStatistics(LocalDateTime startTime, LocalDateTime endTime);
+    /**
+     * 统计冲突信息
+     */
+    ConflictStatisticsVO getConflictStatistics(LocalDateTime startTime, LocalDateTime endTime);
 
     /**
      * 获取实时冲突统计
