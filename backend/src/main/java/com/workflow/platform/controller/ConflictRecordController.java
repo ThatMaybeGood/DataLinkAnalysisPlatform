@@ -264,7 +264,7 @@ public class ConflictRecordController {
             endTime = LocalDateTime.now();
         }
 
-        String report = conflictRecordService.generateConflictReport(startTime, endTime, format);
+        String report = String.valueOf(conflictRecordService.generateConflictReport(startTime, endTime, format));
         return ResponseEntity.ok(report);
     }
 

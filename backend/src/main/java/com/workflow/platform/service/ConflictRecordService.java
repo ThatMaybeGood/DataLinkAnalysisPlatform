@@ -19,6 +19,7 @@ import org.springframework.data.domain.Page;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * 冲突记录服务接口
@@ -108,7 +109,8 @@ public interface ConflictRecordService {
     /**
      * 生成冲突报告
      */
-    String generateConflictReport(LocalDateTime startTime, LocalDateTime endTime, String format);
+    CompletableFuture generateConflictReport(LocalDateTime startTime, LocalDateTime endTime, String format);
+
 
     /**
      * 清理旧的冲突记录

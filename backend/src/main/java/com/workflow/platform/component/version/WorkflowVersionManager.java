@@ -796,7 +796,7 @@ public class WorkflowVersionManager {
 
     private WorkflowDTO mergeThreeWay(WorkflowDTO base, WorkflowDTO theirs) {
         // 三向合并算法
-        WorkflowDTO merged = new WorkflowDTO();
+        WorkflowDTO merged = null;
 
         // 合并基本信息
         merged.setId(base.getId());

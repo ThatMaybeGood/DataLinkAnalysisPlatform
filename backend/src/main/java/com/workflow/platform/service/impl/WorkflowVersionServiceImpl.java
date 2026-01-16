@@ -175,8 +175,8 @@ public class WorkflowVersionServiceImpl implements WorkflowVersionService {
         workflowRepository.save(currentWorkflow);
 
         // 创建回滚记录（作为新版本）
-        WorkflowVersionDTO rollbackVersion = new WorkflowVersionDTO();
-        rollbackVersion.setWorkflowId(workflowId);
+        WorkflowVersionDTO rollbackVersion = null;
+        rollbackVersion.setWorkflowId(String.valueOf(workflowId));
         rollbackVersion.setVersionName("Rollback to v" + targetVersion.getVersionNumber());
         rollbackVersion.setDescription("回滚到版本 " + targetVersion.getVersionNumber());
         rollbackVersion.setChangeSummary("回滚操作");
@@ -331,13 +331,13 @@ public class WorkflowVersionServiceImpl implements WorkflowVersionService {
             @SuppressWarnings("unchecked")
             Map<String, Object> versionInfo = (Map<String, Object>) importData.get("versionInfo");
 
-            WorkflowVersionDTO versionDTO = new WorkflowVersionDTO();
-            versionDTO.setWorkflowId(Long.parseLong(versionInfo.get("workflowId").toString()));
+            WorkflowVersionDTO versionDTO =null;
+            versionDTO.setWorkflowId(versionInfo.get("workflowId").toString());
             versionDTO.setVersionName((String) versionInfo.get("versionName"));
             versionDTO.setDescription((String) versionInfo.get("description"));
 
             // 设置工作流数据
-            versionDTO.setWorkflowData(JsonUtil.toJson(importData.get("workflowData")));
+//            versionDTO.setWorkflowData(JsonUtil.toJson(importData.get("workflowData")));
 
             // 设置节点数据
             if (importData.containsKey("nodeData")) {
