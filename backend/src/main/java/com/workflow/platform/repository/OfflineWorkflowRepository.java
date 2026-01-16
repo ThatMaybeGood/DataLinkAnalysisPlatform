@@ -49,9 +49,9 @@ public class OfflineWorkflowRepository {
 
         // 设置时间戳
         if (workflow.getCreatedAt() == null) {
-            workflow.setCreatedAt(LocalDateTime.now());
+            workflow.setCreatedAt(System.currentTimeMillis());
         }
-        workflow.setUpdatedAt(LocalDateTime.now());
+        workflow.setUpdatedAt(System.currentTimeMillis());
 
         // 保存到文件
         saveToFile(workflow);

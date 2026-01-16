@@ -1,5 +1,9 @@
 package com.workflow.platform.util;
 
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
@@ -304,14 +308,17 @@ public class ModeContext {
     /**
      * 上下文信息类（对外暴露）
      */
-    @lombok.Builder
-    @lombok.Data
+    @Builder
+    @Data
+    @AllArgsConstructor // 生成全参构造器
+    @NoArgsConstructor
     public static class ContextInfo {
         private String mode;
         private String tenantId;
         private String userId;
         private Map<String, Object> attributes;
         private long timestamp;
+
     }
 
     /**

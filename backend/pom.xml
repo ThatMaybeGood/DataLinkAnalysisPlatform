@@ -116,6 +116,17 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-cache</artifactId>
         </dependency>
+        <dependency>
+            <groupId>javax.mail</groupId>
+            <artifactId>javax.mail-api</artifactId>
+            <version>1.6.2</version>
+        </dependency>
+        <dependency>
+            <groupId>com.sun.mail</groupId>
+            <artifactId>javax.mail</artifactId>
+            <version>1.6.2</version>
+        </dependency>
+
 
         <!-- 数据库驱动 -->
         <!-- MySQL (在线模式主要使用) -->
@@ -435,13 +446,6 @@
                     </profiles>
                     <jvmArguments>-Dapp.mode=${activatedProperties}</jvmArguments>
                 </configuration>
-                <executions>
-                    <executionEntity>
-                        <goals>
-                            <goal>repackage</goal>
-                        </goals>
-                    </executionEntity>
-                </executions>
             </plugin>
 
             <!-- 编译插件 -->
@@ -492,14 +496,6 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-source-plugin</artifactId>
                 <version>3.2.1</version>
-                <executions>
-                    <executionEntity>
-                        <id>attach-sources</id>
-                        <goals>
-                            <goal>jar-no-fork</goal>
-                        </goals>
-                    </executionEntity>
-                </executions>
             </plugin>
 
             <!-- 生成Javadoc -->
@@ -508,12 +504,6 @@
                 <artifactId>maven-javadoc-plugin</artifactId>
                 <version>3.5.0</version>
                 <executions>
-                    <executionEntity>
-                        <id>attach-javadocs</id>
-                        <goals>
-                            <goal>jar</goal>
-                        </goals>
-                    </executionEntity>
                 </executions>
             </plugin>
 
@@ -553,41 +543,11 @@
                         <creationTime>USE_CURRENT_TIMESTAMP</creationTime>
                     </container>
                 </configuration>
-                <executions>
-                    <executionEntity>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>dockerBuild</goal>
-                        </goals>
-                    </executionEntity>
-                </executions>
             </plugin>
             <plugin>
                 <groupId>org.jetbrains.kotlin</groupId>
                 <artifactId>kotlin-maven-plugin</artifactId>
                 <version>${kotlin.version}</version>
-                <executions>
-                    <executionEntity>
-                        <id>compile</id>
-                        <phase>compile</phase>
-                        <goals>
-                            <goal>compile</goal>
-                        </goals>
-                        <configuration>
-                            <sourceDirs>
-                                <source>src/main/java</source>
-                                <source>target/generated-sources/annotations</source>
-                            </sourceDirs>
-                        </configuration>
-                    </executionEntity>
-                    <executionEntity>
-                        <id>test-compile</id>
-                        <phase>test-compile</phase>
-                        <goals>
-                            <goal>test-compile</goal>
-                        </goals>
-                    </executionEntity>
-                </executions>
                 <configuration>
                     <jvmTarget>${maven.compiler.target}</jvmTarget>
                 </configuration>
@@ -596,22 +556,6 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.11.0</version>
-                <executions>
-                    <executionEntity>
-                        <id>compile</id>
-                        <phase>compile</phase>
-                        <goals>
-                            <goal>compile</goal>
-                        </goals>
-                    </executionEntity>
-                    <executionEntity>
-                        <id>testCompile</id>
-                        <phase>test-compile</phase>
-                        <goals>
-                            <goal>testCompile</goal>
-                        </goals>
-                    </executionEntity>
-                </executions>
                 <configuration>
                     <source>${java.version}</source>
                     <target>${java.version}</target>

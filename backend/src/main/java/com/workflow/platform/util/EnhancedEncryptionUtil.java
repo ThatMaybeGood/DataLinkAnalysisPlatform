@@ -17,6 +17,7 @@ import java.security.*;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.KeySpec;
 import java.util.Base64;
+import java.util.Map;
 import java.util.zip.*;
 
 /**
@@ -605,6 +606,14 @@ public class EnhancedEncryptionUtil {
         private String algorithm;
         private long timestamp;
         private Map<String, Object> metadata;
+
+        public EncryptedData(byte[] data, Object o, String none) {
+
+        }
+
+        public EncryptedData() {
+
+        }
     }
 
     /**

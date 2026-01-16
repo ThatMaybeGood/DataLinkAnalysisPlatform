@@ -174,12 +174,12 @@ public class OfflineSyncUtil {
 
             return result;
 
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            return SyncResult.builder()
-                    .success(false)
-                    .message("同步被中断")
-                    .build();
+//        } catch (InterruptedException e) {
+//            Thread.currentThread().interrupt();
+//            return SyncResult.builder()
+//                    .success(false)
+//                    .message("同步被中断")
+//                    .build();
         } finally {
             isSyncing = false;
             syncLock.unlock();
@@ -889,6 +889,10 @@ public class OfflineSyncUtil {
         private String remoteVersion;
         private Map<String, Object> localData;
         private Map<String, Object> remoteData;
+
+        public boolean hasConflict() {
+            return true;
+        }
     }
 
     /**

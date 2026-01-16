@@ -58,11 +58,11 @@ public class WorkflowVersionServiceImpl implements WorkflowVersionService {
                 .orElseThrow(() -> new WorkflowException("工作流不存在"));
 
         // 获取当前最大版本号
-        Integer maxVersion = versionRepository.findMaxVersionNumber(versionDTO.getWorkflowId());
+        Integer maxVersion = versionRepository.findMaxVersionNumber(Long.valueOf(versionDTO.getWorkflowId()));
         int newVersionNumber = maxVersion + 1;
 
         // 将当前版本标记为非当前
-        versionRepository.markAllVersionsAsNotCurrent(versionDTO.getWorkflowId());
+        versionRepository.markAllVersionsAsNotCurrent(Long.valueOf(versionDTO.getWorkflowId()));
 
         // 创建版本实体
         WorkflowVersionEntity versionEntity = new WorkflowVersionEntity();

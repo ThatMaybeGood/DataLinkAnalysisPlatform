@@ -48,7 +48,7 @@ public interface NotificationRepository extends JpaRepository<NotificationEntity
     /**
      * 根据ID和用户ID查找通知
      */
-    NotificationEntity findByIdAndUserId(Long id, String userId);
+    NotificationEntity findByIdAndUserId(String id, String userId);
 
     /**
      * 根据类型查找通知
@@ -99,4 +99,6 @@ public interface NotificationRepository extends JpaRepository<NotificationEntity
     @Query("SELECT n FROM NotificationEntity n WHERE n.userId = :userId AND n.deleted = false ORDER BY n.createTime DESC")
     List<NotificationEntity> findLatestByUserId(@Param("userId") String userId,
                                                 org.springframework.data.domain.Pageable pageable);
+
+    List<NotificationEntity> findByUserIdOrderByCreateTimeDesc(String userId, int limit, int offset);
 }

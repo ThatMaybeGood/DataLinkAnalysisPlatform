@@ -27,13 +27,15 @@ public class ModeConfiguration {
     @Primary
     @ConditionalOnProperty(name = "app.mode", havingValue = "online")
     public WorkflowService onlineWorkflowService() {
-        return new OnlineWorkflowServiceImpl();
+//        return new OnlineWorkflowServiceImpl();
+        return null;
     }
 
     @Bean
     @Primary
     @ConditionalOnProperty(name = "app.mode", havingValue = "offline")
     public WorkflowService offlineWorkflowService() {
-        return new OfflineWorkflowServiceImpl();
+//        return new OfflineWorkflowServiceImpl();
+        return null;
     }
 }
