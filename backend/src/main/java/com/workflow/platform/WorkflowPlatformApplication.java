@@ -80,6 +80,7 @@ public class WorkflowPlatformApplication {
             System.out.println("   • 数据存储在MySQL数据库中");
             System.out.println("   • 支持多用户实时协作");
             System.out.println("   • 支持用户权限管理");
+            System.out.println("\n🚀 工作流平台已成功启动，祝您使用愉快！");
         }
     }
 
