@@ -1,0 +1,28 @@
+2026-01-17 23:12:32.689 [main] INFO  c.w.p.WorkflowPlatformApplication - Starting WorkflowPlatformApplication using Java 17.0.16 on mine-2.local with PID 97881 (/Users/mine/Desktop/myproject/DataLinkAnalysisPlatform/backend/target/classes started by yanqunzhang in /Users/mine/Desktop/myproject/DataLinkAnalysisPlatform)
+2026-01-17 23:12:32.690 [main] INFO  c.w.p.WorkflowPlatformApplication - The following 1 profile is active: "offline"
+2026-01-17 23:12:35.791 [main] INFO  c.w.platform.component.ModeManager - 初始化模式管理器，当前模式: ONLINE
+2026-01-17 23:12:35.797 [main] INFO  c.w.p.c.ModeConsistencyChecker - 初始化模式一致性检查器
+2026-01-17 23:12:35.798 [main] INFO  c.w.p.c.ModeConsistencyChecker - 模式一致性检查器初始化完成，检查间隔: 30000ms
+2026-01-17 23:12:36.203 [main] INFO  c.w.platform.filter.ClientInfoFilter - 初始化客户端信息过滤器
+2026-01-17 23:12:36.476 [main] INFO  c.w.platform.filter.ClientInfoFilter - 销毁客户端信息过滤器
+2026-01-17 23:14:37.721 [main] INFO  c.w.p.WorkflowPlatformApplication - Starting WorkflowPlatformApplication using Java 17.0.16 on mine-2.local with PID 1291 (/Users/mine/Desktop/myproject/DataLinkAnalysisPlatform/backend/target/classes started by yanqunzhang in /Users/mine/Desktop/myproject/DataLinkAnalysisPlatform)
+2026-01-17 23:14:37.722 [main] INFO  c.w.p.WorkflowPlatformApplication - The following 1 profile is active: "offline"
+2026-01-17 23:14:40.265 [main] INFO  c.w.platform.component.ModeManager - 初始化模式管理器，当前模式: OFFLINE
+2026-01-17 23:14:40.271 [main] INFO  c.w.p.c.ModeConsistencyChecker - 初始化模式一致性检查器
+2026-01-17 23:14:40.272 [main] INFO  c.w.p.c.ModeConsistencyChecker - 模式一致性检查器初始化完成，检查间隔: 30000ms
+2026-01-17 23:14:40.587 [main] INFO  c.w.platform.filter.ClientInfoFilter - 初始化客户端信息过滤器
+2026-01-17 23:14:40.841 [main] INFO  c.w.platform.filter.ClientInfoFilter - 销毁客户端信息过滤器
+2026-01-17 23:29:24.121 [main] INFO  c.w.p.WorkflowPlatformApplication - Starting WorkflowPlatformApplication using Java 17.0.16 on mine-2.local with PID 23119 (/Users/mine/Desktop/myproject/DataLinkAnalysisPlatform/backend/target/classes started by yanqunzhang in /Users/mine/Desktop/myproject/DataLinkAnalysisPlatform)
+2026-01-17 23:29:24.122 [main] INFO  c.w.p.WorkflowPlatformApplication - The following 1 profile is active: "offline"
+2026-01-17 23:29:26.806 [main] INFO  c.w.platform.component.ModeManager - 初始化模式管理器，当前模式: OFFLINE
+2026-01-17 23:29:26.811 [main] INFO  c.w.p.c.ModeConsistencyChecker - 初始化模式一致性检查器
+2026-01-17 23:29:26.813 [main] INFO  c.w.p.c.ModeConsistencyChecker - 模式一致性检查器初始化完成，检查间隔: 30000ms
+2026-01-17 23:29:27.210 [main] INFO  c.w.platform.filter.ClientInfoFilter - 初始化客户端信息过滤器
+2026-01-17 23:29:27.480 [main] INFO  c.w.platform.filter.ClientInfoFilter - 销毁客户端信息过滤器
+2026-01-17 23:38:18.213 [main] INFO  c.w.p.WorkflowPlatformApplication - Starting WorkflowPlatformApplication using Java 17.0.17 on mine-2.local with PID 37730 (/Users/mine/Desktop/myproject/DataLinkAnalysisPlatform/backend/target/classes started by yanqunzhang in /Users/mine/Desktop/myproject/DataLinkAnalysisPlatform)
+2026-01-17 23:38:18.214 [main] INFO  c.w.p.WorkflowPlatformApplication - The following 1 profile is active: "offline"
+2026-01-17 23:38:20.870 [main] INFO  c.w.platform.component.ModeManager - 初始化模式管理器，当前模式: OFFLINE
+2026-01-17 23:38:20.878 [main] INFO  c.w.p.c.ModeConsistencyChecker - 初始化模式一致性检查器
+2026-01-17 23:38:20.880 [main] INFO  c.w.p.c.ModeConsistencyChecker - 模式一致性检查器初始化完成，检查间隔: 30000ms
+2026-01-17 23:38:21.263 [main] INFO  c.w.platform.filter.ClientInfoFilter - 初始化客户端信息过滤器
+2026-01-17 23:38:21.543 [main] INFO  c.w.platform.filter.ClientInfoFilter - 销毁客户端信息过滤器

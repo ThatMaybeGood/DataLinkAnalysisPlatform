@@ -1,0 +1,60 @@
+{
+	// ========== JDK 配置 ==========
+	"java.jdt.ls.java.home": "/Library/Java/JavaVirtualMachines/jdk-17.jdk/Contents/Home",
+	"java.configuration.runtimes": [
+		{
+			"name": "JavaSE-17",
+			"path": "/Library/Java/JavaVirtualMachines/jdk-17.jdk/Contents/Home",
+			"default": true
+		}
+	],
+	// ========== 编辑器行为（IDEA风格）==========
+	"editor.suggestSelection": "first",
+	"editor.tabSize": 4,
+	"editor.insertSpaces": false,
+	"editor.detectIndentation": false,
+	"editor.wordSeparators": "`~!@#$%^&*()-=+[{]}\\|;:'\",.<>/?",
+	"editor.autoClosingBrackets": "always",
+	"editor.autoClosingQuotes": "always",
+	"editor.formatOnSave": true,
+	"editor.formatOnPaste": true,
+	"editor.codeActionsOnSave": {
+		"source.organizeImports": "explicit",
+		"source.fixAll": "explicit"
+	},
+	// ========== Java 专属配置 ==========
+	"java.autobuild.enabled": true,
+	"java.compile.nullAnalysis.mode": "automatic",
+	"java.debug.settings.onBuildFailureProceed": true,
+	"java.project.importOnFirstTimeStartup": "automatic",
+	"java.project.importHint": false,
+	"java.project.referencedLibraries": [
+		"lib/**/*.jar",
+		"target/**/*.jar"
+	],
+	"java.sources.organizeImports.starThreshold": 5,
+	"java.sources.organizeImports.staticStarThreshold": 3,
+	// ========== 代码折叠 ==========
+	"editor.folding": true,
+	"editor.foldingStrategy": "auto",
+	"java.foldingRange.enabled": true,
+	// ========== 视图和布局 ==========
+	"workbench.editor.enablePreview": false,
+	"workbench.editor.showTabs": "multiple",
+	"workbench.editor.wrapTabs": true,
+	"explorer.openEditors.visible": 10,
+	"breadcrumbs.enabled": true,
+	// ========== 终端配置 ==========
+	"terminal.integrated.defaultProfile.osx": "zsh",
+	"terminal.integrated.env.osx": {
+		"JAVA_HOME": "/Library/Java/JavaVirtualMachines/jdk-17.jdk/Contents/Home"
+	},
+	// ========== 代码格式化 ==========
+	"[java]": {
+		"editor.defaultFormatter": "redhat.java",
+		"editor.formatOnSave": true
+	},
+	// ========== 测试配置 ==========
+	"java.test.defaultConfig": "default",
+	"java.test.report.position": "sideView"
+}
