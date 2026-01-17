@@ -9,12 +9,16 @@ spring:
   # 数据源配置（离线模式使用嵌入式数据库）
   datasource:
     driver-class-name: org.h2.Driver
-    url: ${OFFLINE_DB_URL:jdbc:h2:file:./data/offline/offline_db;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;MODE=MySQL}
+    url: ${OFFLINE_DB_URL:jdbc:h2:file:./data/offline/offline_db;DB_CLOSE_DELAY=-1;CASE_INSENSITIVE_IDENTIFIERS=TRUE;MODE=MySQL}
     username: ${OFFLINE_DB_USERNAME:sa}
     password: ${OFFLINE_DB_PASSWORD:}
     hikari:
       maximum-pool-size: 5
       minimum-idle: 1
+  # 在离线模式下彻底禁用 sql 脚本自动初始化
+  sql:
+    init:
+      mode: never
 
   # JPA配置
   jpa:

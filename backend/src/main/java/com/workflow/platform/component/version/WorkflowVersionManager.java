@@ -9,7 +9,6 @@ import com.workflow.platform.util.JsonUtil;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.poi.ss.formula.functions.T;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -18,13 +17,12 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.stream.Collectors;
 
 /**
  * 工作流版本管理器 - 提供完整的版本管理功能
  */
 @Slf4j
-@Component
+@Component("WorkflowVersionManagerBak")
 public class WorkflowVersionManager {
 
     @Autowired

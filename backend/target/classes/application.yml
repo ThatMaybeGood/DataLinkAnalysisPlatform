@@ -27,7 +27,7 @@ server:
 spring:
   # 配置文件激活
   profiles:
-    active: ${APP_MODE:online}
+    active: ${APP_MODE:offline}
 
   # 数据源配置（在线模式需要）
   datasource:
@@ -48,6 +48,8 @@ spring:
       ddl-auto: update
     properties:
       hibernate:
+        # 添加下面这一行，确保占位符能找到值
+        dialect: org.hibernate.dialect.MySQL8Dialect
         format_sql: true
         use_sql_comments: true
 

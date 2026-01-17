@@ -12,7 +12,6 @@ import java.util.UUID;
  * 客户端信息过滤器
  */
 @Slf4j
-@Component
 public class ClientInfoFilter implements Filter {
 
     @Override

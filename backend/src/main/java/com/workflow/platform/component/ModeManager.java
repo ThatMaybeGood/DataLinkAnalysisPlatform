@@ -13,8 +13,8 @@ import java.util.concurrent.atomic.AtomicReference;
  * 模式管理器 - 统一管理在线/离线模式
  */
 @Slf4j
-@Component
 public class ModeManager {
+//    private final String currentMode;
 
     private final AtomicReference<ModeType> currentMode = new AtomicReference<>();
     private final Object lock = new Object();
@@ -26,7 +26,11 @@ public class ModeManager {
     public ModeManager(ModeType initialMode) {
         this.currentMode.set(initialMode);
     }
-
+//    // 优先读取 workflow.platform.mode，如果没有则读取 mode，再没有则默认为 online
+//    public ModeManager(@Value("${workflow.platform.mode:${mode:online}}") String mode) {
+//        this.currentMode = mode.toUpperCase();
+//        log.info("初始化模式管理器，当前模式: {}", this.currentMode);
+//    }
     @PostConstruct
     public void init() {
         log.info("初始化模式管理器，当前模式: {}", currentMode.get());

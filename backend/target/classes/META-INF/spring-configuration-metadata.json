@@ -1,12 +1,6 @@
 {
   "groups": [
     {
-      "name": "spring.datasource",
-      "type": "org.springframework.boot.autoconfigure.jdbc.DataSourceProperties",
-      "sourceType": "com.workflow.platform.config.DatabaseConfig",
-      "sourceMethod": "dataSourceProperties()"
-    },
-    {
       "name": "spring.datasource.hikari",
       "type": "javax.sql.DataSource",
       "sourceType": "com.workflow.platform.config.DatabaseConfig",

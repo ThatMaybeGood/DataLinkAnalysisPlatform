@@ -1,0 +1,2 @@
+2026-01-16 12:46:54.828 [main] INFO  c.w.p.WorkflowPlatformApplication - Starting WorkflowPlatformApplication using Java 17.0.16 on mine with PID 30508 (D:\JetBrains\IdeaProjects\DataLinkPlatform\backend\target\classes started by 86156 in D:\JetBrains\IdeaProjects\DataLinkPlatform\backend)
+2026-01-16 12:46:54.829 [main] INFO  c.w.p.WorkflowPlatformApplication - The following 1 profile is active: "online"
