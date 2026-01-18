@@ -16,14 +16,11 @@ import java.util.zip.GZIPOutputStream;
 
 import javax.annotation.PostConstruct;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.workflow.platform.constants.SystemConstants;
 import com.workflow.platform.model.dto.WorkflowDTO;
-import com.workflow.platform.util.FileUtil;
 import com.workflow.platform.util.JsonUtil;
 
 import lombok.extern.slf4j.Slf4j;
@@ -34,12 +31,6 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Component
 public class OfflineDataManager {
-
-	@Autowired
-	private ObjectMapper objectMapper;
-
-	@Autowired
-	private FileUtil fileUtil;
 
 	@Value("${workflow.platform.file-storage.base-path:./data}")
 	private String basePath;
@@ -817,10 +808,6 @@ public class OfflineDataManager {
 			return data;
 		}
 
-		public long getTimestamp() {
-			return timestamp;
-		}
-
 		public boolean isExpired() {
 			return System.currentTimeMillis() - timestamp > CACHE_TTL;
 		}
@@ -832,41 +819,16 @@ public class OfflineDataManager {
 	private static class SyncTask {
 		private String id;
 		private String type;
-		private Object data;
-		private long timestamp;
 
 		// Getters and Setters
 		public String getId() {
 			return id;
 		}
 
-		public void setId(String id) {
-			this.id = id;
-		}
-
 		public String getType() {
 			return type;
 		}
 
-		public void setType(String type) {
-			this.type = type;
-		}
-
-		public Object getData() {
-			return data;
-		}
-
-		public void setData(Object data) {
-			this.data = data;
-		}
-
-		public long getTimestamp() {
-			return timestamp;
-		}
-
-		public void setTimestamp(long timestamp) {
-			this.timestamp = timestamp;
-		}
 	}
 
 	/**

@@ -2,24 +2,30 @@ package com.workflow.platform.exception;
 
 import com.workflow.platform.constants.ErrorCodeConstants;
 
-import java.util.Map;
-
 //工作流异常
 public class WorkflowException extends RuntimeException {
 
-    private final int errorCode;
-    private final String conflictType;
-    private final Map<String, Object> localData;
-    private final Map<String, Object> remoteData;
-    private final String resolutionSuggestion;
+	private final int errorCode;
 
-    public WorkflowException(String message) {
-        super(message);
-        this.errorCode = ErrorCodeConstants.SYNC_CONFLICT;
-        this.conflictType = "general";
-        this.localData = null;
-        this.remoteData = null;
-        this.resolutionSuggestion = null;
-    }
+	public WorkflowException(String message) {
+		super(message);
+		this.errorCode = ErrorCodeConstants.SYNC_CONFLICT;
+	}
 
+	public WorkflowException(String message, Exception e) {
+		super(message, e);
+		this.errorCode = ErrorCodeConstants.SYNC_CONFLICT;
+	}
+
+	public int getErrorCode() {
+		return errorCode;
+	}
+
+	@Override
+	public String toString() {
+		return "WorkflowException{" +
+				"errorCode=" + errorCode +
+				", message='" + getMessage() + '\'' +
+				'}';
+	}
 }
