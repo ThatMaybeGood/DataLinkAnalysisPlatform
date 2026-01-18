@@ -11,6 +11,7 @@ import javax.validation.constraints.Size;
 
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
+import lombok.Builder;
 import lombok.Data;
 
 /**
@@ -18,6 +19,7 @@ import lombok.Data;
  * 用于前端与后端之间的数据传输
  */
 @Data
+@Builder
 @ApiModel(description = "工作流数据传输对象")
 public class WorkflowDTO {
 

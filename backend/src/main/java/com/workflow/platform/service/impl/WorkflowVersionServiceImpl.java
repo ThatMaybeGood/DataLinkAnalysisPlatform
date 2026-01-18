@@ -79,7 +79,7 @@ public class WorkflowVersionServiceImpl implements WorkflowVersionService {
 		}
 
 		// 设置工作流数据
-		versionEntity.setWorkflowData(JsonUtil.toJson(workflow));
+		versionEntity.setWorkflowData(workflow.toString());
 
 		// 设置节点数据（如果有）
 		if (versionDTO.getNodeData() != null) {
@@ -182,9 +182,9 @@ public class WorkflowVersionServiceImpl implements WorkflowVersionService {
 		rollbackVersion.setNodeData(targetVersion.getNodeData());
 		rollbackVersion.setValidationData(targetVersion.getValidationData());
 		rollbackVersion.setCreatedBy(targetVersion.getCreatedBy());
-		rollbackVersion.setCreateTime(targetVersion.getCreateTime());
+		rollbackVersion.setCreatedAt(System.currentTimeMillis());
 		rollbackVersion.setIsCurrent(false);
-		rollbackVersion.setTags(targetVersion.getTags());
+		rollbackVersion.setTags(Collections.singletonList(targetVersion.getTags()));
 		rollbackVersion.setChangeSummary("回滚操作");
 		createVersion(rollbackVersion);
 
@@ -322,7 +322,7 @@ public class WorkflowVersionServiceImpl implements WorkflowVersionService {
 			exportData.put("validationData", JsonUtil.fromJson(version.getValidationData(), List.class));
 		}
 
-		return JsonUtil.toJson(exportData);
+		return exportData.toString();
 	}
 
 	@Override
@@ -346,12 +346,12 @@ public class WorkflowVersionServiceImpl implements WorkflowVersionService {
 
 			// 设置节点数据
 			if (importData.containsKey("nodeData")) {
-				versionDTO.setNodeData(JsonUtil.toJson(importData.get("nodeData")));
+				versionDTO.setNodeData(JsonUtil.toJson(importData.get("nodeData")).toString());
 			}
 
 			// 设置验证规则数据
 			if (importData.containsKey("validationData")) {
-				versionDTO.setValidationData(JsonUtil.toJson(importData.get("validationData")));
+				versionDTO.setValidationData(JsonUtil.toJson(importData.get("validationData")).toString());
 			}
 
 			// 创建版本

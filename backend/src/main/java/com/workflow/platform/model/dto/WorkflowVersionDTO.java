@@ -6,6 +6,7 @@ import java.util.Map;
 
 import javax.validation.constraints.NotNull;
 
+import antlr.ANTLRParser;
 import groovy.transform.builder.Builder;
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
@@ -22,7 +23,6 @@ import lombok.Data;
  *
  */
 @Data
-@Builder
 @ApiModel(description = "工作流版本数据传输对象")
 public class WorkflowVersionDTO {
 
@@ -40,7 +40,7 @@ public class WorkflowVersionDTO {
 	private String changeSummary;
 
 	@ApiModelProperty(value = "工作流数据（JSON格式）")
-	private WorkflowDTO workflowData;
+	private String workflowData;
 
 	@ApiModelProperty(value = "节点数据（JSON格式）")
 	private String nodeData;
@@ -92,9 +92,12 @@ public class WorkflowVersionDTO {
 	private Integer changeCount;
 
 	// 分支相关
-	private boolean isBranch;
+	private Boolean isBranch;
 	private String branchName;
 	private String baseWorkflowId;
 	private Integer baseVersion;
+
+	private Boolean compressed;
+	private Boolean isCurrent;
 
 }

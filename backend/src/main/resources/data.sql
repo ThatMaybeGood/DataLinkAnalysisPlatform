@@ -34,14 +34,18 @@ CREATE TABLE IF NOT EXISTS workflows (
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
 
     -- 索引
-    INDEX idx_name (name),
-    INDEX idx_alias (alias),
-    INDEX idx_category (category),
-    INDEX idx_status (status),
-    INDEX idx_tenant (tenant_id),
-    INDEX idx_created_at (created_at)
+    CREATE INDEX IF NOT EXISTS idx_name (name),
+    CREATE INDEX IF NOT EXISTS idx_alias (alias),
+    CREATE INDEX IF NOT EXISTS idx_category (category),
+    CREATE INDEX IF NOT EXISTS idx_status (status),
+    CREATE INDEX IF NOT EXISTS idx_tenant (tenant_id),
+    CREATE INDEX IF NOT EXISTS idx_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='工作流表';
 
+-- 先删除可能存在的索引
+DROP CREATE INDEX IF NOT EXISTS IF EXISTS IDX_CREATED_AT;
+DROP CREATE INDEX IF NOT EXISTS IF EXISTS IDX_WORKFLOW_ID;
+DROP CREATE INDEX IF NOT EXISTS IF EXISTS IDX_TYPE;
 -- 节点表
 CREATE TABLE IF NOT EXISTS nodes (
     id VARCHAR(50) PRIMARY KEY COMMENT '主键ID',
@@ -80,10 +84,11 @@ CREATE TABLE IF NOT EXISTS nodes (
     FOREIGN KEY (workflow_id) REFERENCES workflows(id) ON DELETE CASCADE,
 
     -- 索引
-    INDEX idx_workflow_id (workflow_id),
-    INDEX idx_type (type),
-    INDEX idx_created_at (created_at)
+    CREATE INDEX IF NOT EXISTS idx_workflow_id (workflow_id),
+    CREATE INDEX IF NOT EXISTS idx_type (type),
+    CREATE INDEX IF NOT EXISTS idx_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='节点表';
+
 
 -- 验证规则表
 CREATE TABLE IF NOT EXISTS validation_rules (
@@ -118,9 +123,9 @@ CREATE TABLE IF NOT EXISTS validation_rules (
     FOREIGN KEY (node_id) REFERENCES nodes(id) ON DELETE CASCADE,
 
     -- 索引
-    INDEX idx_node_id (node_id),
-    INDEX idx_type (type),
-    INDEX idx_enabled (enabled)
+    CREATE INDEX IF NOT EXISTS idx_node_id (node_id),
+    CREATE INDEX IF NOT EXISTS idx_type (type),
+    CREATE INDEX IF NOT EXISTS idx_enabled (enabled)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='验证规则表';
 
 -- 连接器表
@@ -147,9 +152,9 @@ CREATE TABLE IF NOT EXISTS connectors (
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
 
     -- 索引
-    INDEX idx_type (type),
-    INDEX idx_status (status),
-    INDEX idx_created_at (created_at)
+    CREATE INDEX IF NOT EXISTS idx_type (type),
+    CREATE INDEX IF NOT EXISTS idx_status (status),
+    CREATE INDEX IF NOT EXISTS idx_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='连接器表';
 
 -- 执行记录表
@@ -187,11 +192,11 @@ CREATE TABLE IF NOT EXISTS executions (
     FOREIGN KEY (workflow_id) REFERENCES workflows(id) ON DELETE CASCADE,
 
     -- 索引
-    INDEX idx_workflow_id (workflow_id),
-    INDEX idx_status (status),
-    INDEX idx_trigger_type (trigger_type),
-    INDEX idx_created_at (created_at),
-    INDEX idx_duration (duration_ms)
+    CREATE INDEX IF NOT EXISTS idx_workflow_id (workflow_id),
+    CREATE INDEX IF NOT EXISTS idx_status (status),
+    CREATE INDEX IF NOT EXISTS idx_trigger_type (trigger_type),
+    CREATE INDEX IF NOT EXISTS idx_created_at (created_at),
+    CREATE INDEX IF NOT EXISTS idx_duration (duration_ms)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='执行记录表';
 
 -- 节点执行详情表
@@ -228,10 +233,10 @@ CREATE TABLE IF NOT EXISTS node_executions (
     FOREIGN KEY (execution_id) REFERENCES executions(id) ON DELETE CASCADE,
 
     -- 索引
-    INDEX idx_execution_id (execution_id),
-    INDEX idx_node_id (node_id),
-    INDEX idx_status (status),
-    INDEX idx_created_at (created_at)
+    CREATE INDEX IF NOT EXISTS idx_execution_id (execution_id),
+    CREATE INDEX IF NOT EXISTS idx_node_id (node_id),
+    CREATE INDEX IF NOT EXISTS idx_status (status),
+    CREATE INDEX IF NOT EXISTS idx_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='节点执行详情表';
 
 -- 数据快照表
@@ -257,10 +262,10 @@ CREATE TABLE IF NOT EXISTS data_snapshots (
     FOREIGN KEY (execution_id) REFERENCES executions(id) ON DELETE CASCADE,
 
     -- 索引
-    INDEX idx_execution_id (execution_id),
-    INDEX idx_node_id (node_id),
-    INDEX idx_snapshot_type (snapshot_type),
-    INDEX idx_created_at (created_at)
+    CREATE INDEX IF NOT EXISTS idx_execution_id (execution_id),
+    CREATE INDEX IF NOT EXISTS idx_node_id (node_id),
+    CREATE INDEX IF NOT EXISTS idx_snapshot_type (snapshot_type),
+    CREATE INDEX IF NOT EXISTS idx_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='数据快照表';
 
 -- 用户表（权限管理）
@@ -288,9 +293,9 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
 
     -- 索引
-    INDEX idx_username (username),
-    INDEX idx_email (email),
-    INDEX idx_status (status)
+    CREATE INDEX IF NOT EXISTS idx_username (username),
+    CREATE INDEX IF NOT EXISTS idx_email (email),
+    CREATE INDEX IF NOT EXISTS idx_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户表';
 
 -- 角色表
@@ -328,8 +333,8 @@ CREATE TABLE IF NOT EXISTS user_roles (
     UNIQUE KEY uk_user_role (user_id, role_id),
 
     -- 索引
-    INDEX idx_user_id (user_id),
-    INDEX idx_role_id (role_id)
+    CREATE INDEX IF NOT EXISTS idx_user_id (user_id),
+    CREATE INDEX IF NOT EXISTS idx_role_id (role_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户角色关联表';
 
 -- 租户表（多租户支持）
@@ -350,8 +355,8 @@ CREATE TABLE IF NOT EXISTS tenants (
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
 
     -- 索引
-    INDEX idx_code (code),
-    INDEX idx_status (status)
+    CREATE INDEX IF NOT EXISTS idx_code (code),
+    CREATE INDEX IF NOT EXISTS idx_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='租户表';
 
 -- 系统配置表
@@ -374,8 +379,8 @@ CREATE TABLE IF NOT EXISTS system_configs (
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
 
     -- 索引
-    INDEX idx_config_key (config_key),
-    INDEX idx_category (category)
+    CREATE INDEX IF NOT EXISTS idx_config_key (config_key),
+    CREATE INDEX IF NOT EXISTS idx_category (category)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='系统配置表';
 
 -- 操作日志表
@@ -401,9 +406,9 @@ CREATE TABLE IF NOT EXISTS operation_logs (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
 
     -- 索引
-    INDEX idx_operation_type (operation_type),
-    INDEX idx_user_id (user_id),
-    INDEX idx_created_at (created_at)
+    CREATE INDEX IF NOT EXISTS idx_operation_type (operation_type),
+    CREATE INDEX IF NOT EXISTS idx_user_id (user_id),
+    CREATE INDEX IF NOT EXISTS idx_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='操作日志表';
 
 -- 初始化数据

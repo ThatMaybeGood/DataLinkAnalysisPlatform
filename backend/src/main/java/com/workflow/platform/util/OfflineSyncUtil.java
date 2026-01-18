@@ -118,6 +118,7 @@ public class OfflineSyncUtil {
 				int successCount = 0;
 				int failureCount = 0;
 				int conflictCount = 0;
+				int totalProcessed = 0;
 
 				for (int i = 0; i < filesToSync.size(); i += batchSize) {
 					int end = Math.min(i + batchSize, filesToSync.size());
@@ -150,7 +151,7 @@ public class OfflineSyncUtil {
 
 				// 4. 保存同步状态
 				lastSyncTime = System.currentTimeMillis();
-				lastSyncResult = jsonUtil.toJson(result);
+				lastSyncResult = jsonUtil.toJson(result).toString();
 				saveSyncStates();
 
 			} catch (Exception e) {
@@ -258,7 +259,7 @@ public class OfflineSyncUtil {
 
 				// 4. 保存同步状态
 				lastSyncTime = System.currentTimeMillis();
-				lastSyncResult = jsonUtil.toJson(result);
+				lastSyncResult = jsonUtil.toJson(result).toString();
 				saveSyncStates();
 
 			} catch (Exception e) {
@@ -804,7 +805,7 @@ public class OfflineSyncUtil {
 			stateData.setLastSyncResult(lastSyncResult);
 			stateData.setFileSyncStates(fileSyncStates);
 
-			String content = jsonUtil.toJson(stateData);
+			String content = jsonUtil.toJson(stateData).toString();
 			fileUtil.writeStringToFile(content, stateFile);
 
 			log.debug("保存同步状态到: {}", stateFile);

@@ -690,7 +690,7 @@ public class AuditLogManager {
 			pdfData.put("stats", stats);
 			pdfData.put("exportTime", System.currentTimeMillis());
 
-			return JsonUtil.toJson(pdfData).getBytes();
+			return JsonUtil.toPrettyJson(pdfData).getBytes("UTF-8");
 		} catch (Exception e) {
 			log.error("生成PDF失败", e);
 			return new byte[0];

@@ -64,19 +64,18 @@ public class WorkflowVersionManager {
 			String versionId = generateVersionId(workflowId, versionNumber);
 
 			// 创建版本
-			WorkflowVersionDTO version = WorkflowVersionDTO.builder()
-					.id(versionId)
-					.workflowId(workflowId)
-					.versionNumber(versionNumber)
-					.versionTag("v" + versionNumber)
-					.description(description)
-					.workflowData(workflow)
-					.createdBy(createdBy)
-					.createdAt(System.currentTimeMillis())
-					.checksum(calculateChecksum(workflow))
-					.size(calculateSize(workflow))
-					.metadata(generateMetadata(workflow))
-					.build();
+			WorkflowVersionDTO version = new WorkflowVersionDTO();
+			version.setId(versionId);
+			version.setVersionNumber(versionNumber);
+			version.setVersionTag("v" + versionNumber);
+			version.setDescription(description);
+			version.setWorkflowData(JsonUtil.toJson(workflow));
+			version.setCreatedBy(createdBy);
+			version.setCreatedAt(System.currentTimeMillis());
+			version.setChecksum(calculateChecksum(workflow));
+			version.setSize(calculateSize(workflow));
+			version.setMetadata(generateMetadata(workflow));
+			version.setCompressed(compressionEnabled); // 设置压缩标志
 
 			// 保存版本
 			store.addVersion(version);
@@ -148,7 +147,7 @@ public class WorkflowVersionManager {
 			}
 
 			// 恢复工作流
-			boolean restored = offlineDataManager.saveWorkflow(version.getWorkflowData());
+			boolean restored = offlineDataManager.saveWorkflow(JsonUtil.fromJson(version.getWorkflowData(), WorkflowDTO.class));
 			if (!restored) {
 				log.error("恢复工作流失败: {} v{}", workflowId, versionNumber);
 				return false;
@@ -221,7 +220,7 @@ public class WorkflowVersionManager {
 			}
 
 			// 复制基础版本
-			WorkflowDTO branchWorkflow = deepCopy(baseVersionDTO.getWorkflowData());
+			WorkflowDTO branchWorkflow = deepCopy(JsonUtil.fromJson(baseVersionDTO.getWorkflowData(), WorkflowDTO.class));
 			branchWorkflow.setId(generateBranchId(workflowId, branchName));
 			branchWorkflow.setName(branchWorkflow.getName() + " - " + branchName);
 			branchWorkflow.setDescription(description);
@@ -235,7 +234,7 @@ public class WorkflowVersionManager {
 			branchVersion.setVersionNumber(1);
 			branchVersion.setVersionTag("branch/" + branchName + "/v1");
 			branchVersion.setDescription("分支创建: " + description);
-			branchVersion.setWorkflowData(branchWorkflow);
+			branchVersion.setWorkflowData(JsonUtil.toJson(branchWorkflow));
 			branchVersion.setCreatedBy(createdBy);
 			branchVersion.setCreatedAt(System.currentTimeMillis());
 			branchVersion.setIsBranch(true);
@@ -520,8 +519,8 @@ public class WorkflowVersionManager {
 
 	private List<BasicChange> compareBasicInfo(WorkflowVersionDTO v1, WorkflowVersionDTO v2) {
 		List<BasicChange> changes = new ArrayList<>();
-		WorkflowDTO w1 = v1.getWorkflowData();
-		WorkflowDTO w2 = v2.getWorkflowData();
+		WorkflowDTO w1 = JsonUtil.fromJson(v1.getWorkflowData(), WorkflowDTO.class);
+		WorkflowDTO w2 = JsonUtil.fromJson(v2.getWorkflowData(), WorkflowDTO.class);
 
 		if (!Objects.equals(w1.getName(), w2.getName())) {
 			changes.add(new BasicChange("name", w1.getName(), w2.getName()));
@@ -571,8 +570,8 @@ public class WorkflowVersionManager {
 
 	private Map<String, Object> extractNodes(WorkflowVersionDTO version) {
 		Map<String, Object> nodes = new HashMap<>();
-		if (version.getWorkflowData().getNodes() != null) {
-			for (Object node : version.getWorkflowData().getNodes()) {
+		if (JsonUtil.fromJson(version.getWorkflowData(), WorkflowDTO.class).getNodes() != null) {
+			for (Object node : JsonUtil.fromJson(version.getWorkflowData(), WorkflowDTO.class).getNodes()) {
 				if (node instanceof Map) {
 					Map<?, ?> nodeMap = (Map<?, ?>) node;
 					Object id = nodeMap.get("id");
