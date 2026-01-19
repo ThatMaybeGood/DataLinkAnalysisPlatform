@@ -21,6 +21,9 @@ spring:
       mode: never
       data-locations: # 明确指定为空
       schema-locations: # 明确指定为空
+  mvc:
+    pathmatch:
+      matching-strategy: ant_path_matcher
 
   # JPA配置
   jpa:
