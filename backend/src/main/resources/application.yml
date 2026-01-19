@@ -7,8 +7,13 @@ app:
   name: workflow-platform
   version: 1.0.0
   description: 工作流可视化平台
-  mode: ${APP_MODE:offline}  # 在线/离线模式，通过环境变量控制
+#  mode: ${APP_MODE:offline}  # 在线/离线模式，通过环境变量控制
+  mode: offline
 
+  offline:
+    storage:
+      file:
+        path: ./data/offline
 # 服务器配置
 server:
   port: ${SERVER_PORT:8080}
@@ -134,7 +139,7 @@ workflow:
     # 安全配置
     security:
       jwt:
-        secret: ${JWT_SECRET:workflow-platform-secret-key}
+        secret-key: ${JWT_SECRET:workflow-platform-secret-key}
         expiration: 86400000  # 24小时
       cors:
         allowed-origins: ${ALLOWED_ORIGINS:http://localhost:3000}

@@ -386,7 +386,7 @@ public class NotificationServiceImpl implements NotificationService {
     public List<Map<String, Object>> getUserNotifications(String userId, int limit, int offset) {
         try {
             List<NotificationEntity> notifications = notificationRepository
-                    .findByUserIdOrderByCreateTimeDesc(userId, limit, offset);
+                    .findByUserIdOrderByCreateTimeDesc(userId);
 
             return notifications.stream()
                     .map(this::convertToMap)
@@ -403,7 +403,7 @@ public class NotificationServiceImpl implements NotificationService {
     public void markNotificationAsRead(String notificationId, String userId) {
         try {
             NotificationEntity notification = notificationRepository
-                    .findByIdAndUserId(notificationId, userId);
+                    .findByIdAndUserId(Long.valueOf(notificationId), userId);
 
             if (notification != null) {
                 notification.setRead(true);
@@ -423,7 +423,7 @@ public class NotificationServiceImpl implements NotificationService {
     public void deleteNotification(String notificationId, String userId) {
         try {
             NotificationEntity notification = notificationRepository
-                    .findByIdAndUserId(notificationId, userId);
+                    .findByIdAndUserId(Long.valueOf(notificationId), userId);
 
             if (notification != null) {
                 notification.setDeleted(true);

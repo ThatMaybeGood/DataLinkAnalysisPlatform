@@ -22,19 +22,4 @@ public class ModeConfiguration {
 		return new ModeManager(modeType);
 	}
 
-	@Bean
-	@Primary
-	@ConditionalOnProperty(name = "app.mode", havingValue = "online")
-	public WorkflowService onlineWorkflowService() {
-		// return new OnlineWorkflowServiceImpl();
-		return null;
-	}
-
-	@Bean
-	@Primary
-	@ConditionalOnProperty(name = "app.mode", havingValue = "offline")
-	public WorkflowService offlineWorkflowService() {
-		// return new OfflineWorkflowServiceImpl();
-		return null;
-	}
 }

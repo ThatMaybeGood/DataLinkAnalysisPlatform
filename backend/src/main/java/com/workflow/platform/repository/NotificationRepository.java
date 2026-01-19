@@ -1,13 +1,7 @@
 package com.workflow.platform.repository;
 
-/**
- * @author Mine
- * @version 1.0
- * 描述:
- * @date 2026/1/11 00:54
- */
-
 import com.workflow.platform.model.entity.NotificationEntity;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -24,7 +18,7 @@ import java.util.List;
 public interface NotificationRepository extends JpaRepository<NotificationEntity, Long> {
 
     /**
-     * 根据用户ID查找通知
+     * 根据用户ID查找所有通知（不分页）
      */
     List<NotificationEntity> findByUserIdOrderByCreateTimeDesc(String userId);
 
@@ -35,10 +29,10 @@ public interface NotificationRepository extends JpaRepository<NotificationEntity
 
     /**
      * 根据用户ID分页查找
+     * Spring Data JPA 会根据 Pageable 自动处理 Limit 和 Offset
      */
-    @Query("SELECT n FROM NotificationEntity n WHERE n.userId = :userId AND n.deleted = false ORDER BY n.createTime DESC")
-    List<NotificationEntity> findByUserIdOrderByCreateTimeDesc(@Param("userId") String userId,
-                                                               org.springframework.data.domain.Pageable pageable);
+    @Query("SELECT n FROM NotificationEntity n WHERE n.userId = :userId AND n.deleted = false")
+    List<NotificationEntity> findByUserId(@Param("userId") String userId, Pageable pageable);
 
     /**
      * 统计用户未读通知数量
@@ -47,8 +41,9 @@ public interface NotificationRepository extends JpaRepository<NotificationEntity
 
     /**
      * 根据ID和用户ID查找通知
+     * 注意：主键类型由 String 改为 Long，以匹配 JpaRepository 定义
      */
-    NotificationEntity findByIdAndUserId(String id, String userId);
+    NotificationEntity findByIdAndUserId(Long id, String userId);
 
     /**
      * 根据类型查找通知
@@ -97,8 +92,5 @@ public interface NotificationRepository extends JpaRepository<NotificationEntity
      * 查找用户最后一条通知
      */
     @Query("SELECT n FROM NotificationEntity n WHERE n.userId = :userId AND n.deleted = false ORDER BY n.createTime DESC")
-    List<NotificationEntity> findLatestByUserId(@Param("userId") String userId,
-                                                org.springframework.data.domain.Pageable pageable);
-
-    List<NotificationEntity> findByUserIdOrderByCreateTimeDesc(String userId, int limit, int offset);
+    List<NotificationEntity> findLatestByUserId(@Param("userId") String userId, Pageable pageable);
 }

@@ -26,7 +26,7 @@ public class WorkflowGraphManager {
 	@Autowired
 	private ObjectMapper objectMapper;
 
-	@Autowired
+	//	@Autowired
 	// private WorkflowGraphUtil workflowGraphUtil;
 
 	// 缓存工作流图数据

@@ -13,6 +13,8 @@ import com.workflow.platform.service.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.Closure;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.annotation.Profile;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -29,11 +31,11 @@ import java.util.*;
  * 在线工作流服务实现
  * 使用MySQL数据库存储数据，支持完整的CRUD、查询、执行等操作
  */
-@Service
+@Service("onlineWorkflowService")
 @RequiredArgsConstructor
 @Slf4j
 @Transactional
-@RequireMode("online")
+@ConditionalOnProperty(name = "app.mode", havingValue = "online") // 匹配 app.mode=offline
 public class OnlineWorkflowServiceImpl implements WorkflowService {
 
     private final WorkflowRepository workflowRepository;

@@ -7,6 +7,7 @@ import javax.sql.DataSource;
 
 import org.springframework.beans.factory.annotation.Value;
 // import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.autoconfigure.sql.init.SqlInitializationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
@@ -111,5 +112,16 @@ public class DatabaseConfig {
 		JpaTransactionManager transactionManager = new JpaTransactionManager();
 		transactionManager.setEntityManagerFactory(entityManagerFactory.getObject());
 		return transactionManager;
+	}
+
+
+	// 在 offlineDataSource 方法所在类中
+	@Bean
+	@Primary
+	@Profile("offline") // 只有激活 offline profile 时，才会把这个“禁用”配置注入容器
+	public SqlInitializationProperties sqlInitializationProperties() {
+		SqlInitializationProperties properties = new SqlInitializationProperties();
+		properties.setMode(org.springframework.boot.sql.init.DatabaseInitializationMode.NEVER);
+		return properties;
 	}
 }

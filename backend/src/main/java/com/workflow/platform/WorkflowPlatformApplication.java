@@ -1,8 +1,10 @@
 package com.workflow.platform;
 
+import com.workflow.platform.service.WorkflowService;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.annotation.Bean;
 
 /**
  * 工作流平台主启动类
@@ -32,6 +34,7 @@ public class WorkflowPlatformApplication {
 
 		app.run(args);
 	}
+
 
 	/**
 	 * 从命令行参数解析模式设置

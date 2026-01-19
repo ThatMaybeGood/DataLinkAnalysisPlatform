@@ -67,7 +67,7 @@ workflow-visualization-platform/           # 项目根目录
 │   │   ├── application.yml                # ✅ 主配置文件
 │   │   ├── application-online.yml         # ✅ 在线模式配置
 │   │   ├── application-offline.yml        # ✅ 离线模式配置
-│   │   ├── data.sql                       # ✅ 数据库初始化脚本
+│   │   ├── data-online-mysql.sql                       # ✅ 数据库初始化脚本
 │   │   └── logback-spring.xml             # ✅ 日志配置
 │   ├── Dockerfile                         # ✅ 在线模式Dockerfile
 │   ├── Dockerfile.offline                 # ✅ 离线模式Dockerfile
@@ -293,7 +293,7 @@ backend/src/main/resources/application-online.yml - 在线配置
 
 backend/src/main/resources/application-offline.yml - 离线配置
 
-backend/src/main/resources/data.sql - 数据库脚本
+backend/src/main/resources/data-online-mysql.sql - 数据库脚本
 
 backend/src/main/resources/logback-spring.xml - 日志配置
 

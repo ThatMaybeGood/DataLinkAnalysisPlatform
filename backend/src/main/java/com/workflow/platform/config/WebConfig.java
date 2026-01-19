@@ -54,19 +54,23 @@ public class WebConfig implements WebMvcConfigurer {
     private RequestLogInterceptor requestLogInterceptor;
 
 
-
-
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
-        // 添加模式检查拦截器
+        // 1. 添加模式检查拦截器 (如果是 new 出来的)
         registry.addInterceptor(new ModeInterceptor())
                 .addPathPatterns("/api/**")
                 .excludePathPatterns("/api/public/**", "/api/auth/**");
 
-        // 添加请求日志拦截器
-        registry.addInterceptor(new RequestLogInterceptor())
+        // 2. 添加模式一致性拦截器 (使用注入的 Bean)
+        registry.addInterceptor(modeConsistencyInterceptor)
+                .addPathPatterns("/api/**")
+                .excludePathPatterns("/api/public/**", "/api/auth/**", "/api/coordination/heartbeat");
+
+        // 3. 添加请求日志拦截器 (使用注入的 Bean)
+        registry.addInterceptor(requestLogInterceptor)
                 .addPathPatterns("/api/**");
     }
+
 
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
@@ -96,17 +100,7 @@ public class WebConfig implements WebMvcConfigurer {
 
 
 
-    @Bean
-    public void addModeInterceptors(InterceptorRegistry registry) {
-        // 添加模式一致性拦截器
-        registry.addInterceptor(modeConsistencyInterceptor)
-                .addPathPatterns("/api/**")
-                .excludePathPatterns("/api/public/**", "/api/auth/**", "/api/coordination/heartbeat");
 
-        // 添加请求日志拦截器
-        registry.addInterceptor(requestLogInterceptor)
-                .addPathPatterns("/api/**");
-    }
 
     @Bean
     public FilterRegistrationBean<ClientInfoFilter> clientInfoFilter() {

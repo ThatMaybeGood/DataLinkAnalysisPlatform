@@ -104,7 +104,13 @@ public interface ConflictRecordRepository extends JpaRepository<ConflictRecordEn
     /**
      * 按日期统计新增冲突
      */
-    @Query("SELECT DATE(c.detectedTime), COUNT(c) FROM ConflictRecordEntity c WHERE c.detectedTime BETWEEN :startDate AND :endDate GROUP BY DATE(c.detectedTime) ORDER BY DATE(c.detectedTime)")
+//    @Query("SELECT DATE(c.detectedTime), COUNT(c) FROM ConflictRecordEntity c WHERE c.detectedTime BETWEEN :startDate AND :endDate GROUP BY DATE(c.detectedTime) ORDER BY DATE(c.detectedTime)")
+//    List<Object[]> countByDate(@Param("startDate") LocalDateTime startDate,
+//                               @Param("endDate") LocalDateTime endDate);
+    @Query(value = "SELECT FORMATDATETIME(detected_time, 'yyyy-MM-dd'), COUNT(*) " +
+            "FROM conflict_records " +
+            "WHERE detected_time BETWEEN :startDate AND :endDate " +
+            "GROUP BY FORMATDATETIME(detected_time, 'yyyy-MM-dd')", nativeQuery = true)
     List<Object[]> countByDate(@Param("startDate") LocalDateTime startDate,
                                @Param("endDate") LocalDateTime endDate);
 

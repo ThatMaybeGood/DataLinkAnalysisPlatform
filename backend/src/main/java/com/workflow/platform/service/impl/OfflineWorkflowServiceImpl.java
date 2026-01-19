@@ -10,6 +10,9 @@ import com.workflow.platform.service.WorkflowService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.annotation.Primary;
+import org.springframework.context.annotation.Profile;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -29,25 +32,29 @@ import java.util.stream.Collectors;
  * 离线工作流服务实现
  * 使用本地文件系统存储数据，支持离线环境下的工作流操作
  */
-@Service
+@Service("offlineWorkflowService")
 @RequiredArgsConstructor
 @Slf4j
-@RequireMode("offline")
+@ConditionalOnProperty(name = "app.mode", havingValue = "offline") // 匹配 app.mode=offline
 public class OfflineWorkflowServiceImpl implements WorkflowService {
 
     private final OfflineWorkflowRepository workflowRepository;
+
+
     private final ObjectMapper objectMapper;
 
-    @Value("${app.offline.storage.file.path:./data/workflows}")
+
+
+    @Value("${app.offline.storage.file.path:./data}/workflows")
     private String workflowsDir;
 
-    @Value("${app.offline.storage.file.path:./data/nodes}")
+    @Value("${app.offline.storage.file.path:./data}/nodes")
     private String nodesDir;
 
-    @Value("${app.offline.storage.file.path:./data/rules}")
+    @Value("${app.offline.storage.file.path:./data}/rules")
     private String rulesDir;
 
-    @Value("${app.offline.storage.file.path:./data/exports}")
+    @Value("${app.offline.storage.file.path:./data}/exports")
     private String exportsDir;
 
     // ========== 基础CRUD操作 ==========

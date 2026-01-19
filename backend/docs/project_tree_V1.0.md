@@ -218,7 +218,7 @@ workflow-visualization-platform/
 │       ├── 📄 application-offline.yml    # 离线模式配置
 │       ├── 📄 application-security.yml   # 安全配置
 │       ├── 📄 logback-spring.xml         # 日志配置
-│       ├── 📄 data.sql                   # 数据初始化脚本
+│       ├── 📄 data-online-mysql.sql                   # 数据初始化脚本
 │       ├── 📂 templates/                 # 模板文件
 │       │   ├── 📂 workflow/
 │       │   │   ├── 📄 basic-workflow.json
@@ -236,7 +236,7 @@ workflow-visualization-platform/
 │       ├── 📂 scripts/                   # SQL脚本
 │       │   ├── 📄 init-online.sql
 │       │   ├── 📄 init-offline.sql
-│       │   ├── 📄 init-test-data.sql
+│       │   ├── 📄 init-test-data-online-mysql.sql
 │       │   └── 📂 migration/
 │       │       ├── 📄 V1_0_0__initial_schema.sql
 │       │       ├── 📄 V1_1_0__add_offline_support.sql

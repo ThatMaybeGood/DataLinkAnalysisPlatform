@@ -14,6 +14,9 @@ spring:
     hikari:
       maximum-pool-size: 50
       minimum-idle: 10
+  sql:
+    init:
+      data-locations: classpath:data-online-mysql.sql
 
   # JPA配置
   jpa:

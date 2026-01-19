@@ -22,7 +22,7 @@ public class WorkflowEngine {
 
 	public ExecutionEntity execute(WorkflowEntity workflow, Map<String, Object> input) {
 		ExecutionEntity executionEntity = new ExecutionEntity();
-		executionEntity.setWorkflowId(workflow.getId());
+		executionEntity.setWorkflow(workflow);
 		executionEntity.setStartTime(LocalDateTime.now());
 		executionEntity.setInputData(input);
 

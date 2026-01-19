@@ -21,7 +21,8 @@ import java.util.List;
                 @Index(name = "idx_alias", columnList = "alias"),
                 @Index(name = "idx_category", columnList = "category"),
                 @Index(name = "idx_status", columnList = "status"),
-                @Index(name = "idx_created_at", columnList = "createdAt")
+//                @Index(name = "idx_created_at", columnList = "createdAt")
+                @Index(name = "idx_create_time", columnList = "create_time") // 修改点
         })
 public class WorkflowEntity extends com.workflow.platform.model.entity.BaseEntity {
 
@@ -134,9 +135,10 @@ public class WorkflowEntity extends com.workflow.platform.model.entity.BaseEntit
     private List<ExecutionEntity> executions;
 
     /** 更新时间 */
-
+    @Column(name = "update_time") // 显式指定更好
     private LocalDateTime updateTime;
     /** 创建时间 */
+    @Column(name = "create_time") // 显式指定更好
     private LocalDateTime createTime;
 
     /**
@@ -154,4 +156,5 @@ public class WorkflowEntity extends com.workflow.platform.model.entity.BaseEntit
         this.name = name;
         this.alias = alias;
     }
+
 }
