@@ -1,0 +1,76 @@
+/* ============================================================
+   DataLink 平台 · 设计令牌（Design Tokens）
+   企业级简约风格：浅色主界面 + 深色画布区 + 单一科技蓝强调
+   ============================================================ */
+
+:root {
+  /* —— 中性色 —— */
+  --bg: #f5f6f8;                 /* 页面背景 */
+  --surface: #ffffff;            /* 卡片 / 面板 */
+  --surface-2: #f0f2f5;          /* 次级面板 / 斑马行 */
+  --surface-3: #fafbfc;          /* 悬浮浅底 */
+  --border: #e3e6eb;             /* 常规描边 */
+  --border-strong: #cdd3dc;      /* 强调描边 */
+
+  /* —— 文字 —— */
+  --fg: #1b2333;                 /* 主文字 */
+  --fg-muted: #5b6472;           /* 次级文字 */
+  --fg-faint: #8a93a4;           /* 弱化文字 / 占位 */
+  --fg-invert: #ffffff;
+
+  /* —— 主色（科技蓝） —— */
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --accent-active: #1e40af;
+  --accent-soft: rgba(37, 99, 235, 0.08);
+  --accent-soft-2: rgba(37, 99, 235, 0.16);
+  --accent-border: rgba(37, 99, 235, 0.35);
+
+  /* —— 状态色 —— */
+  --success: #16a34a;
+  --success-soft: rgba(22, 163, 74, 0.10);
+  --warning: #d97706;
+  --warning-soft: rgba(217, 119, 6, 0.10);
+  --danger: #dc2626;
+  --danger-soft: rgba(220, 38, 38, 0.10);
+  --info: #0ea5e9;
+  --info-soft: rgba(14, 165, 233, 0.10);
+
+  /* —— 画布区（深色，突出关系网） —— */
+  --canvas-bg: #0d1424;
+  --canvas-bg-grid: #131c31;
+  --canvas-border: #1f2b47;
+  --canvas-fg: #c7d2e8;
+  --canvas-fg-dim: #7583a4;
+
+  /* —— 节点类型色（画布内） —— */
+  --node-system: #3b82f6;
+  --node-database: #8b5cf6;
+  --node-department: #06b6d4;
+  --node-action: #f59e0b;
+  --node-line: #9aa7c0;
+
+  /* —— 圆角 / 阴影 —— */
+  --radius: 8px;
+  --radius-sm: 6px;
+  --radius-lg: 12px;
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.05);
+  --shadow-md: 0 4px 16px rgba(16, 24, 40, 0.08);
+  --shadow-lg: 0 12px 32px rgba(16, 24, 40, 0.12);
+  --shadow-canvas: 0 8px 28px rgba(13, 20, 36, 0.35);
+
+  /* —— 尺寸 —— */
+  --sidebar-w: 224px;
+  --topbar-h: 56px;
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-2xl: 48px;
+
+  /* —— 字体 —— */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "SF Mono", "JetBrains Mono", Consolas, "Courier New", monospace;
+}
