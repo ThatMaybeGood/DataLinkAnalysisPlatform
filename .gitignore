@@ -43,3 +43,6 @@ secrets/
 *.tsbuildinfo
 .cache/
 tmp/
+# vue-tsc -b 生成的配置产物
+vite.config.js
+vite.config.d.ts

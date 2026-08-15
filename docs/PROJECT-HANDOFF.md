@@ -31,13 +31,16 @@
 
 - [x] 需求分析（8 轮讨论）
 - [x] 项目文档书 v1.0 → v1.1（补全 DDL/RBAC/用户故事/页面清单）
-- [x] git 重开为全新仓库（3 个 commit，含文档）
+- [x] git 重开为全新仓库
 - [x] 前端工程骨架 + 设计系统 + 核心画布（GraphCanvas G6）+ 关系网页（GraphView）+ 节点详情
-- [x] 派发 4 个子 agent 并行开发 7 个页面（Dashboard/流程列表/数据接入/检测点/告警/版本/系统管理）
-- [ ] **集成验证**：子 agent 完成后跑 `npm run build` + `npm run dev` 验证，修复报错
-- [ ] **截图/演示**：让用户看效果（可起 dev server 让用户访问）
-- [ ] 前端 commit + push（仓库当前**无远程**，push 需用户提供 remote 地址）
+- [x] 4 个子 agent 并行完成 7 个页面（Dashboard/流程列表/数据接入/检测点/告警/版本/系统管理）
+- [x] **集成验证通过**：`npm run build` 全绿（类型检查 + 打包），`npm run dev` 运行中 http://localhost:5173
+- [x] 前端已 commit（`2e40dc4` 前端 MVP；`b1cb475` 文档 v1.1）
+- [ ] **清理误提交**：`frontend/vite.config.js`、`frontend/vite.config.d.ts`（vue-tsc 产物）待 `git rm --cached` + 二次 commit（.gitignore 已加忽略规则）
+- [ ] **推送仓库**：当前仓库**无 remote**，需用户提供远程仓库地址（GitHub/Gitee）后 `git push`
 - [ ] 后端启动（Spring Boot，M0/M1）
+
+> 权限说明：`~/.claude/settings.local.json` 已设 `defaultMode: bypassPermissions`（全权模式），重启会话后所有命令不再弹确认。
 
 ## 五、前端工程当前结构
 
