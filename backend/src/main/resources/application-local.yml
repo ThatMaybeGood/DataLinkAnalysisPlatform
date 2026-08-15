@@ -1,0 +1,15 @@
+# ============================================================
+# 离线本地模式（默认 profile）：嵌入式 H2 文件库，零安装、开箱即用
+# 数据文件保存在 backend/.data/h2/（已 git 忽略），重启不丢数据
+# ============================================================
+spring:
+  datasource:
+    url: jdbc:h2:file:./.data/h2/datalink;MODE=MySQL;DATABASE_TO_LOWER=TRUE;NON_KEYWORDS=VALUE
+    username: sa
+    password: ""
+    driver-class-name: org.h2.Driver
+  flyway:
+    locations: classpath:db/migration/h2,classpath:db/migration/common
+
+datalink:
+  db-type: h2

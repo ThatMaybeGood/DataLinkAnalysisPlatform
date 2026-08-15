@@ -1,0 +1,53 @@
+# ============================================================
+# DataLink 平台 · 后端通用配置
+#
+# 默认启用 local（离线 H2）profile，开箱即用、零安装：
+#   cd backend && mvn spring-boot:run
+#
+# 部署模式切换 MySQL 8（连接参数可用环境变量覆盖）：
+#   java -jar datalink-backend.jar --spring.profiles.active=mysql
+#   SPRING_PROFILES_ACTIVE=mysql DB_URL=jdbc:mysql://... ./run.sh
+# ============================================================
+server:
+  port: 8080
+
+spring:
+  application:
+    name: datalink-backend
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:local}
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+  jackson:
+    time-zone: Asia/Shanghai
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    banner: false
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+  api-docs:
+    path: /v3/api-docs
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+datalink:
+  # 数据库方言：h2（本地）/ mysql（部署）——MyBatis-Plus 分页插件按此切换
+  db-type: h2
+  jwt:
+    # 本地开发密钥；生产必须通过环境变量覆盖（DATALINK_JWT_SECRET）
+    secret: ${DATALINK_JWT_SECRET:datalink-local-dev-secret-key-change-me-0123456789}
+    expire-seconds: 86400   # 24 小时
+
+logging:
+  level:
+    root: info

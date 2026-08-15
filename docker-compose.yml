@@ -1,0 +1,65 @@
+# ============================================================
+# DataLink 平台 · 一键部署（Docker Compose）
+# 组成：nginx(前端静态资源 + /api 反代) + backend + mysql8
+#
+# 用法（需已安装 Docker）：
+#   docker compose up -d --build
+#   # 访问 http://localhost（前端） / http://localhost:8080/api/health（后端探活）
+#
+# 生产请务必修改以下默认值：
+#   - mysql 的 MYSQL_ROOT_PASSWORD / MYSQL_PASSWORD
+#   - backend 的 DATALINK_JWT_SECRET（>=32 字节随机串）
+# ============================================================
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: datalink-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root123456
+      MYSQL_DATABASE: datalink
+      MYSQL_USER: datalink
+      MYSQL_PASSWORD: datalink123
+      TZ: Asia/Shanghai
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot123456"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "3306:3306"
+    networks: [datalink]
+
+  backend:
+    build: ./backend
+    container_name: datalink-backend
+    environment:
+      SPRING_PROFILES_ACTIVE: mysql
+      DB_URL: jdbc:mysql://mysql:3306/datalink?useSSL=false&serverTimezone=Asia/Shanghai&characterEncoding=utf8&allowPublicKeyRetrieval=true
+      DB_USER: datalink
+      DB_PASSWORD: datalink123
+      DATALINK_JWT_SECRET: change-me-in-production-0123456789abcdef
+      TZ: Asia/Shanghai
+    depends_on:
+      mysql:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    networks: [datalink]
+
+  frontend:
+    build: ./frontend
+    container_name: datalink-frontend
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+    networks: [datalink]
+
+volumes:
+  mysql-data:
+
+networks:
+  datalink:
