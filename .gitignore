@@ -1,0 +1,45 @@
+# ---- 操作系统 ----
+.DS_Store
+Thumbs.db
+
+# ---- IDE ----
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# ---- Java / Spring Boot 后端 ----
+target/
+*.class
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+*.log
+logs/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+dependency-reduced-pom.xml
+.mvn/timing.properties
+.mvn/maven.config
+
+# ---- Node / Vue 前端 ----
+node_modules/
+dist/
+dist-ssr/
+*.local
+.vite/
+coverage/
+.nyc_output/
+
+# ---- 环境变量 / 密钥（不提交）----
+.env
+.env.*
+!.env.example
+*.pem
+secrets/
+
+# ---- 编译产物 / 缓存 ----
+*.tsbuildinfo
+.cache/
+tmp/
