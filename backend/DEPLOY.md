@@ -211,6 +211,20 @@ GET    /api/dashboard/stats                 看板聚合（流程/运行/今日�
 
 > 监控示例数据（V5 迁移）含 6 实例 / 11 检测点 / 5 告警 / 3 工单；「支付系统检测 FAIL → 告警 → 实例卡住 → 顺藤摸瓜溯源」闭环可直接在界面体验。
 
+### 4.4 M3 择路 + M2 收尾接口
+
+```
+GET    /api/graph/path?from=&to=&maxDepth=8   任意两点路径查询（DFS，最多 20 条）
+GET    /api/graph/{nodeId}/impact             影响面：下游节点 + 受影响实例/路线
+POST   /api/alerts                            新建告警（自动应用等级处置 L1-L4）
+PUT    /api/tickets/{id}                      工单状态流转（OPEN→PROCESSING→RESOLVED + 指派）
+GET    /api/versions?page=&size=&targetType=  配置版本历史（建模 CRUD 自动留痕）
+```
+
+- 等级处置规则：L1→`AUTO_ACTION,TICKET,NOTIFY`、L2→`TICKET,NOTIFY`、L3→`NOTIFY`、L4→`RECORD`（含 TICKET 自动生成工单）
+- 配置版本：node/process/route 增删改自动写入 `config_version` 快照（operator 当前默认 `system`，接入登录后取当前用户）
+- **Security 说明**：当前 M0~M3 接口全放行（`permitAll`），JWT 基础设施已就绪；待前端登录页完成后按 RBAC 收紧
+
 ---
 
 ## 5. 数据库备份与运维建议
