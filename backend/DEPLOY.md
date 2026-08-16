@@ -173,6 +173,24 @@ GET    /api/connectors/{id}/tables/{table}/preview  数据预览
 
 **数据池 vs 平台自身存储**：数据池用于「连接外部业务库」（M2 采集/监控将使用），平台自身建模/监控/配置数据仍存于 H2 或 MySQL（第 1、2 节），二者隔离。
 
+### 4.2 建模域接口（陈列 / 关系网）
+
+平台建模（站点/路网/流程/路线）REST 接口，id 统一为字符串，对接前端画布：
+
+```
+GET    /api/nodes                    全部站点（GraphNode，含 checkpoints）
+POST   /api/nodes                    新建站点（PUT /{id} 修改，DELETE 删除）
+GET    /api/edges                    全部路网边（GraphEdge）
+POST   /api/edges                    新建边（DELETE /{id}）
+GET    /api/processes                流程列表（含起点/终点名、节点数、路线数、实例统计）
+POST   /api/processes                新建流程（PUT/DELETE 同）
+GET    /api/routes                   路线列表（?processId= 过滤，nodeIds 有序）
+POST   /api/routes                   新建路线（nodeIds 级联写 route_node；PUT 级联重建、DELETE 级联删）
+GET    /api/search?q=                全局搜索（节点/流程/路线按 code/name/alias 通吃）
+```
+
+> 建模数据的种子示例（V2/V4 迁移）包含「订单支付流程」「付款流程（风控/支付分支）」两套路网，启动即自动建好，可直接在关系网画布查看。
+
 ---
 
 ## 5. 数据库备份与运维建议

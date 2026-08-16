@@ -58,6 +58,15 @@
 - [x] PostgreSQL：驱动+方言+测试连接路径与另两者同构，**待实机验证**（本地无 PG 服务）
 - [x] 分布式预留：配置存平台库（全局共享），各节点各自建连接池（无状态）；广播机制留扩展点未实现
 
+### 建模域（✅ M1 完成，端到端实测通过）
+- [x] `model` 包：Node/Relation/Process/Route/RouteNode/Alias 实体+Mapper+DTO（**id 统一字符串**，对齐前端契约）
+- [x] 读接口（装配）：`GET /api/nodes`（18）、`GET /api/edges`（20）、`GET /api/processes`（2，含 start/end 名、nodeCount/routeCount/instanceStats）、`GET /api/routes`（5，nodeIds 有序）
+- [x] 建模 CRUD：node/relation/process/route 增删改（route 级联写 route_node，deleteProcess 级联删路线）
+- [x] 全局搜索：`GET /api/search?q=`（节点/流程/路线按 code/name/alias 通吃，实测别名命中）
+- [x] V4 种子扩充：付款流程（风控/支付分支）路网，与前端原型场景对齐
+- [x] 前端 GraphView/ProcessListView 已接真实接口（异步加载+加载/错误态），`npm run build` 全绿
+- [x] 后端 35 个测试全绿；端到端实测：读接口/搜索/CRUD 级联/前端代理全部通过
+
 ### 文档
 - [x] 项目文档书 v1.1 + config_version 主键修正
 
@@ -107,16 +116,19 @@ backend/src/main/resources/
 - MyBatis-Plus 方言：`MybatisPlusConfig` 按 `datalink.db-type` 切换，加 `oracle` 分支即可
 - 此机制针对**平台自身存储库**；数据池连接器（对接外部业务库）属 M1，二者不混
 
-## 六、下一步（M1 · 陈列：建模域 CRUD + 对接画布）
+## 六、下一步（M2 · 摸瓜：监控 + 排查）
 
-数据池模块已交付。剩余 M1 按顺序：
-1. **建模域 CRUD**：node / relation / process / route(+route_node) 的 REST 接口（分页、搜索、别名全局搜索）
-2. **命名别名**：`alias` 表通用增删查，全局搜索通吃单号/显示名/别名
-3. **关系网接口**：`GET /api/nodes`、`GET /api/edges`、`GET /api/processes`、`GET /api/routes` 对接前端画布
-   （前端 `src/api/index.ts` 已加 `fetchHealth`/数据池真实接口；其余仍是 mock，逐个替换为 `fetch('/api/...')`，签名不变、页面不用改）
-4. **等级/版本**：level L1-L4、config_version 留痕
-5. M1 末收紧 Security：按 RBAC 授权（当前 `anyRequest().permitAll()`）
-6. 远期：PostgreSQL 实机验证、数据池接 Oracle（新增方言+驱动）、数据池用于 M2 采集/监控
+M1 陈列已交付：数据池 + 建模域 CRUD + 关系网接口 + 前端画布接真实数据。剩余前端 mock（实例/告警/看板/版本）属 M2。
+
+M2 按顺序：
+1. **检测点**：checkpoint/check_result 接口 + 默认/自定义检测点配置（前端 CheckpointView 接真实数据）
+2. **实例追踪**：instance/instance_node 接口 + 卡点定位（前端实例 mock 替换；feature 推断/人工标记）
+3. **顺藤摸瓜排查**：问题站点上下游高亮 + 溯源/影响面（图算法在 `graph` 服务扩展）
+4. **告警 + 工单**：alert/ticket 接口 + 告警中心接真实数据（前端 AlertView）
+5. **看板**：`/api/dashboard/stats` 聚合接口（前端 DashboardView 替换 mockDashboardStats）
+6. **等级预警/干预**：level L1-L4 驱动（M2 末）
+7. M1 末/ M2 初收紧 Security：按 RBAC 授权（当前 `anyRequest().permitAll()`）
+8. 远期：PostgreSQL 实机验证、数据池接 Oracle、版本留痕 config_version 完善
 
 ## 七、用户工作偏好（重要）
 
@@ -127,6 +139,6 @@ backend/src/main/resources/
 
 ## 八、续接起点
 
-**当前任务 = 后端 M1 剩余：建模域 CRUD（node/relation/process/route）+ 关系网接口对接前端画布**。M0（脚手架/双库）+ 数据池模块均已交付并推送到 GitHub。
-新会话第一步：读本文档 → `cd backend && mvn spring-boot:run` 起服务 → 从建模域 CRUD 开始。
-前端「数据接入」页已可打开 http://localhost:5173 查看数据池功能。
+**当前任务 = M2 · 摸瓜（监控 + 排查）**。M0（脚手架/双库）+ M1（数据池 + 建模域 + 关系网接口对接画布）均已交付并推送到 GitHub。
+新会话第一步：读本文档 → `cd backend && mvn spring-boot:run` 起服务 → 从检测点/实例追踪开始。
+前端已可用：http://localhost:5173（关系网画布显示真实种子数据，数据接入页管理数据池）。
