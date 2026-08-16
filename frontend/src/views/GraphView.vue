@@ -6,6 +6,7 @@ import { fetchEdges, fetchGraphTrace, fetchImpact, fetchNodes, fetchProcesses, f
 import type { GraphPathResult, GraphTrace, ImpactResult } from '@/api';
 import type { GraphEdge, GraphNode, Instance, ProcessDef, Route } from '@/types';
 import GraphCanvas from '@/components/GraphCanvas.vue';
+import PathMapView from '@/components/PathMapView.vue';
 import NodeDetailPanel from '@/components/NodeDetailPanel.vue';
 import Icon from '@/components/Icon.vue';
 
@@ -143,6 +144,7 @@ const pathsLoading = ref(false);
 const pathsError = ref('');
 const selectedPathIdx = ref<number | null>(null);
 const pathNodeIds = ref<string[]>([]);
+const pathMapMode = ref(false); // 路径结果「地铁图」视图开关
 let pathTimer: number | null = null;
 
 function clearPathTimer() {
@@ -349,19 +351,26 @@ onBeforeUnmount(() => clearPathTimer());
           @click="searchPaths"
         >{{ pathsLoading ? '查询中…' : '查询' }}</button>
         <button v-if="paths" class="btn btn-ghost btn-sm" @click="clearPaths">清除</button>
+        <button
+          v-if="paths && paths.length" class="btn btn-ghost btn-sm path-map-toggle"
+          :class="{ 'path-map-toggle--on': pathMapMode }" @click="pathMapMode = !pathMapMode"
+        >地铁图</button>
       </div>
-      <div v-if="paths" class="path-results">
+      <div v-if="paths" class="path-results" :class="{ 'path-results--map': pathMapMode }">
         <div v-if="pathsLoading" class="path-meta">路径计算中…</div>
         <div v-else-if="pathsError" class="path-meta path-meta--error">{{ pathsError }}</div>
         <template v-else-if="paths.length">
-          <button
-            v-for="(p, idx) in paths" :key="idx"
-            class="path-card" :class="{ 'path-card--active': selectedPathIdx === idx }"
-            :title="p.nodeNames.join(' → ')" @click="highlightPath(p, idx)"
-          >
-            <span class="path-chain">{{ p.nodeNames.join(' → ') }}</span>
-            <span class="path-len">长度 {{ p.length }}</span>
-          </button>
+          <PathMapView v-if="pathMapMode" :paths="paths" @focus-node="focusStation" />
+          <template v-else>
+            <button
+              v-for="(p, idx) in paths" :key="idx"
+              class="path-card" :class="{ 'path-card--active': selectedPathIdx === idx }"
+              :title="p.nodeNames.join(' → ')" @click="highlightPath(p, idx)"
+            >
+              <span class="path-chain">{{ p.nodeNames.join(' → ') }}</span>
+              <span class="path-len">长度 {{ p.length }}</span>
+            </button>
+          </template>
         </template>
         <div v-else class="path-meta">未找到可达路径</div>
       </div>
@@ -661,6 +670,9 @@ onBeforeUnmount(() => clearPathTimer());
   display: flex; align-items: center; gap: 8px; width: 100%;
   overflow-x: auto; padding: 2px 0 8px;
 }
+/* 地铁图模式：整体作为块级占满，滚动交给组件内 .pm-scroll */
+.path-results--map { display: block; overflow: visible; }
+.path-map-toggle--on { background: var(--accent-soft); color: var(--accent); border-color: var(--accent-border); font-weight: 500; }
 .path-meta { font-size: 12px; color: var(--fg-muted); }
 .path-meta--error { color: var(--danger); }
 .path-card {
