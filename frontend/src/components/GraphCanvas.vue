@@ -77,16 +77,17 @@ function toNodeData(n: GraphNode, degree: Map<string, number>): NodeData {
 }
 
 function toEdgeData(e: GraphEdge): EdgeData {
+  // 边 id 加 'e' 前缀：避免与节点 id（同为数字字符串）冲突，否则 G6 5.1.1 会因 id 命名空间撞车触发 getPorts 崩溃
   // data 里同样不放 source/target/id
-  return { id: e.id, source: e.source, target: e.target, data: { relationType: e.relationType } } as unknown as EdgeData;
+  return { id: 'e' + e.id, source: e.source, target: e.target, data: { relationType: e.relationType } } as unknown as EdgeData;
 }
 
-/** 路线高亮：高亮路线内节点与边，其余变暗 */
+/** 路线高亮：高亮路线内节点与边，其余变暗（边元素 id 带 'e' 前缀，与 toEdgeData 一致） */
 function applyHighlight(routeId: string | null) {
   if (!graph) return;
   const reset: Record<string, string[]> = {};
   props.nodes.forEach((n) => (reset[n.id] = []));
-  props.edges.forEach((e) => (reset[e.id] = []));
+  props.edges.forEach((e) => (reset['e' + e.id] = []));
   graph.setElementState(reset);
 
   if (!routeId) return;
@@ -94,11 +95,11 @@ function applyHighlight(routeId: string | null) {
   if (!route) return;
   const set = new Set(route.nodeIds);
   const edgeSet = new Set(
-    props.edges.filter((e) => set.has(e.source) && set.has(e.target)).map((e) => e.id),
+    props.edges.filter((e) => set.has(e.source) && set.has(e.target)).map((e) => 'e' + e.id),
   );
   const states: Record<string, string[]> = {};
   props.nodes.forEach((n) => (states[n.id] = set.has(n.id) ? ['highlight'] : ['dimmed']));
-  props.edges.forEach((e) => (states[e.id] = edgeSet.has(e.id) ? ['highlight'] : ['dimmed']));
+  props.edges.forEach((e) => (states['e' + e.id] = edgeSet.has('e' + e.id) ? ['highlight'] : ['dimmed']));
   graph.setElementState(states);
 }
 
