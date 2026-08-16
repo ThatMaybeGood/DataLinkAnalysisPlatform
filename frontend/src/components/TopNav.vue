@@ -2,13 +2,23 @@
 import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { mockAlerts } from '@/api/mockData';
-import { fetchHealth } from '@/api';
+import { clearToken, DISPLAY_NAME_KEY, fetchHealth, ROLES_KEY } from '@/api';
 import type { HealthInfo } from '@/types';
 
 const route = useRoute();
 const router = useRouter();
 const pageTitle = computed(() => (route.meta.title as string) || '');
 const openCount = computed(() => mockAlerts.filter((a) => a.status === 'OPEN').length);
+
+/** 当前用户显示名（登录后写 localStorage，未登录降级「管理员」） */
+const displayName = computed(() => localStorage.getItem(DISPLAY_NAME_KEY) || '管理员');
+
+function onLogout() {
+  clearToken();
+  localStorage.removeItem(DISPLAY_NAME_KEY);
+  localStorage.removeItem(ROLES_KEY);
+  router.push('/login');
+}
 
 /* —— 后端运行模式（/api/health）—— */
 const health = ref<HealthInfo | null>(null);
@@ -74,8 +84,9 @@ function onSearch(keyword: string) {
       </button>
 
       <div class="top-user">
-        <div class="avatar-sm">管</div>
-        <span class="top-user-name">管理员</span>
+        <div class="avatar-sm">{{ displayName.charAt(0) }}</div>
+        <span class="top-user-name">{{ displayName }}</span>
+        <button class="btn btn-ghost btn-sm logout-btn" title="退出登录" @click="onLogout">退出</button>
       </div>
     </div>
   </header>
@@ -130,4 +141,5 @@ function onSearch(keyword: string) {
   display: flex; align-items: center; justify-content: center;
 }
 .top-user-name { font-size: 13px; font-weight: 500; }
+.logout-btn { margin-left: 4px; }
 </style>

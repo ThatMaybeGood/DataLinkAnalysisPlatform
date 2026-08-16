@@ -9,21 +9,79 @@
 import type {
   AlertItem, Checkpoint, ConnectorSavePayload, ConnectorTestResult, DashboardStats,
   DataSourceConnector, GraphEdge, GraphNode, HealthInfo, Instance,
-  ProcessDef, Route, TableInfo, TablePreview, VersionRecord,
+  LoginResult, ProcessDef, Route, TableInfo, TablePreview, VersionRecord,
 } from '@/types';
+
+// ============================================================
+// 鉴权：token 存取 / 登录 / 当前用户
+// 契约：POST /api/auth/login 与 GET /api/auth/me 均返回
+//   { code, message, data: { token, displayName, roles } }
+//   其余 /api/** 需 Authorization: Bearer <token>，否则 HTTP 401
+// ============================================================
+
+/** token 存储键（localStorage） */
+export const TOKEN_KEY = 'datalink_token';
+/** 当前用户显示名存储键（localStorage） */
+export const DISPLAY_NAME_KEY = 'datalink_display_name';
+/** 当前用户角色存储键（localStorage，JSON 数组） */
+export const ROLES_KEY = 'datalink_roles';
+
+/** 读取登录 token（未登录返回 null） */
+export function getToken(): string | null {
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+/** 保存登录 token */
+export function setToken(token: string): void {
+  localStorage.setItem(TOKEN_KEY, token);
+}
+
+/** 清除登录 token */
+export function clearToken(): void {
+  localStorage.removeItem(TOKEN_KEY);
+}
+
+/** 登录（POST /api/auth/login，本身不需要 token） */
+export async function login(username: string, password: string): Promise<LoginResult> {
+  const res = await fetch('/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password }),
+  });
+  return unwrap<LoginResult>(res);
+}
+
+/** 获取当前登录用户（GET /api/auth/me，带 Bearer token） */
+export async function fetchMe(): Promise<LoginResult> {
+  return unwrap<LoginResult>(await apiFetch('/api/auth/me'));
+}
+
+/** 统一请求封装：自动附加 Bearer token；401 清 token 并回登录页 */
+async function apiFetch(path: string, options: RequestInit = {}): Promise<Response> {
+  const token = getToken();
+  const headers = new Headers(options.headers);
+  if (token) headers.set('Authorization', `Bearer ${token}`);
+  const res = await fetch(path, { ...options, headers });
+  if (res.status === 401) {
+    clearToken();
+    if (window.location.pathname !== '/login') window.location.href = '/login';
+    throw new Error('未认证或登录已过期');
+  }
+  return res;
+}
 
 /** 关系网 / 流程数据（真实接口，返回 Result<T>，code === 200 成功） */
 export async function fetchNodes(): Promise<GraphNode[]> {
-  return unwrap<GraphNode[]>(await fetch('/api/nodes'));
+  return unwrap<GraphNode[]>(await apiFetch('/api/nodes'));
 }
 export async function fetchEdges(): Promise<GraphEdge[]> {
-  return unwrap<GraphEdge[]>(await fetch('/api/edges'));
+  return unwrap<GraphEdge[]>(await apiFetch('/api/edges'));
 }
 export async function fetchProcesses(): Promise<ProcessDef[]> {
-  return unwrap<ProcessDef[]>(await fetch('/api/processes'));
+  return unwrap<ProcessDef[]>(await apiFetch('/api/processes'));
 }
 export async function fetchRoutes(): Promise<Route[]> {
-  return unwrap<Route[]>(await fetch('/api/routes'));
+  return unwrap<Route[]>(await apiFetch('/api/routes'));
 }
 
 /** 配置版本分页查询（page 从 1 起；targetType 为空 = 全部类型） */
@@ -32,7 +90,7 @@ export async function fetchVersions(
 ): Promise<{ records: VersionRecord[]; total: number }> {
   const qs = new URLSearchParams({ page: String(page), size: String(size) });
   if (targetType) qs.set('targetType', targetType);
-  const res = await fetch(`/api/versions?${qs.toString()}`);
+  const res = await apiFetch(`/api/versions?${qs.toString()}`);
   return unwrap<{ records: VersionRecord[]; total: number }>(res);
 }
 
@@ -62,25 +120,25 @@ export async function fetchInstances(
 ): Promise<{ records: Instance[]; total: number }> {
   const qs = new URLSearchParams({ page: String(page), size: String(size) });
   if (status) qs.set('status', status);
-  const res = await fetch(`/api/instances?${qs.toString()}`);
+  const res = await apiFetch(`/api/instances?${qs.toString()}`);
   return unwrap<{ records: Instance[]; total: number }>(res);
 }
 
 /** 实例经过的节点序列（顺藤摸瓜定位实例当前所在站点） */
 export async function fetchInstanceNodes(id: string): Promise<InstanceNodeVO[]> {
-  const res = await fetch(`/api/instances/${encodeURIComponent(id)}/nodes`);
+  const res = await apiFetch(`/api/instances/${encodeURIComponent(id)}/nodes`);
   return unwrap<InstanceNodeVO[]>(res);
 }
 
 /** 告警列表（含已解决，前端负责过滤） */
 export async function fetchAlerts(): Promise<AlertItem[]> {
-  const res = await fetch('/api/alerts');
+  const res = await apiFetch('/api/alerts');
   return unwrap<AlertItem[]>(res);
 }
 
 /** 关闭告警 */
 export async function resolveAlert(id: string): Promise<void> {
-  const res = await fetch(`/api/alerts/${encodeURIComponent(id)}/resolve`, { method: 'POST' });
+  const res = await apiFetch(`/api/alerts/${encodeURIComponent(id)}/resolve`, { method: 'POST' });
   await unwrap<void>(res);
 }
 
@@ -93,7 +151,7 @@ export interface TicketUpdatePayload {
 
 /** 更新工单 */
 export async function updateTicket(id: string, payload: TicketUpdatePayload): Promise<void> {
-  const res = await fetch(`/api/tickets/${encodeURIComponent(id)}`, {
+  const res = await apiFetch(`/api/tickets/${encodeURIComponent(id)}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -112,7 +170,7 @@ export interface AlertCreatePayload {
 
 /** 新建告警（后端自动应用等级处置） */
 export async function createAlert(payload: AlertCreatePayload): Promise<void> {
-  const res = await fetch('/api/alerts', {
+  const res = await apiFetch('/api/alerts', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -122,19 +180,19 @@ export async function createAlert(payload: AlertCreatePayload): Promise<void> {
 
 /** 看板统计 */
 export async function fetchDashboardStats(): Promise<DashboardStats> {
-  const res = await fetch('/api/dashboard/stats');
+  const res = await apiFetch('/api/dashboard/stats');
   return unwrap<DashboardStats>(res);
 }
 
 /** 站点检测点清单 */
 export async function fetchCheckpoints(nodeId: string): Promise<Checkpoint[]> {
-  const res = await fetch(`/api/checkpoints?nodeId=${encodeURIComponent(nodeId)}`);
+  const res = await apiFetch(`/api/checkpoints?nodeId=${encodeURIComponent(nodeId)}`);
   return unwrap<Checkpoint[]>(res);
 }
 
 /** 上下游追踪（顺藤摸瓜：某节点与其上游 / 下游） */
 export async function fetchGraphTrace(nodeId: string): Promise<GraphTrace> {
-  const res = await fetch(`/api/graph/${encodeURIComponent(nodeId)}/trace`);
+  const res = await apiFetch(`/api/graph/${encodeURIComponent(nodeId)}/trace`);
   return unwrap<GraphTrace>(res);
 }
 
@@ -148,7 +206,7 @@ export interface GraphPathResult {
 /** A→B 多路径查询（maxDepth 默认 8，返回全部可达路径） */
 export async function queryGraphPaths(from: string, to: string, maxDepth = 8): Promise<GraphPathResult[]> {
   const qs = new URLSearchParams({ from, to, maxDepth: String(maxDepth) });
-  const res = await fetch(`/api/graph/path?${qs.toString()}`);
+  const res = await apiFetch(`/api/graph/path?${qs.toString()}`);
   return unwrap<GraphPathResult[]>(res);
 }
 
@@ -161,13 +219,13 @@ export interface ImpactResult {
 
 /** 节点影响面分析 */
 export async function fetchImpact(nodeId: string): Promise<ImpactResult> {
-  const res = await fetch(`/api/graph/${encodeURIComponent(nodeId)}/impact`);
+  const res = await apiFetch(`/api/graph/${encodeURIComponent(nodeId)}/impact`);
   return unwrap<ImpactResult>(res);
 }
 
 /** 健康探活（真实接口，非 mock）：返回运行模式 / 数据库状态 / 版本 */
 export async function fetchHealth(): Promise<HealthInfo> {
-  const res = await fetch('/api/health');
+  const res = await apiFetch('/api/health');
   if (!res.ok) throw new Error(`health http ${res.status}`);
   const json = await res.json();
   return json.data as HealthInfo;
@@ -189,19 +247,19 @@ async function unwrap<T>(res: Response): Promise<T> {
 export async function fetchConnectors(
   page = 1, size = 10, keyword = '',
 ): Promise<{ records: DataSourceConnector[]; total: number }> {
-  const res = await fetch(`/api/connectors?page=${page}&size=${size}&keyword=${encodeURIComponent(keyword)}`);
+  const res = await apiFetch(`/api/connectors?page=${page}&size=${size}&keyword=${encodeURIComponent(keyword)}`);
   return unwrap<{ records: DataSourceConnector[]; total: number }>(res);
 }
 
 /** 连接器详情 */
 export async function fetchConnector(id: string): Promise<DataSourceConnector> {
-  const res = await fetch(`/api/connectors/${id}`);
+  const res = await apiFetch(`/api/connectors/${id}`);
   return unwrap<DataSourceConnector>(res);
 }
 
 /** 新建连接器 */
 export async function createConnector(payload: ConnectorSavePayload): Promise<DataSourceConnector> {
-  const res = await fetch('/api/connectors', {
+  const res = await apiFetch('/api/connectors', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -211,7 +269,7 @@ export async function createConnector(payload: ConnectorSavePayload): Promise<Da
 
 /** 更新连接器（password 留空 = 不改密码） */
 export async function updateConnector(id: string, payload: ConnectorSavePayload): Promise<DataSourceConnector> {
-  const res = await fetch(`/api/connectors/${id}`, {
+  const res = await apiFetch(`/api/connectors/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -221,30 +279,30 @@ export async function updateConnector(id: string, payload: ConnectorSavePayload)
 
 /** 删除连接器 */
 export async function deleteConnector(id: string): Promise<void> {
-  const res = await fetch(`/api/connectors/${id}`, { method: 'DELETE' });
+  const res = await apiFetch(`/api/connectors/${id}`, { method: 'DELETE' });
   await unwrap<void>(res);
 }
 
 /** 测试连接连通性（ok / 延迟 / 数据库版本 / 失败原因） */
 export async function testConnector(id: string): Promise<ConnectorTestResult> {
-  const res = await fetch(`/api/connectors/${id}/test`, { method: 'POST' });
+  const res = await apiFetch(`/api/connectors/${id}/test`, { method: 'POST' });
   return unwrap<ConnectorTestResult>(res);
 }
 
 /** 设为当前连接（保证 is_active 全局唯一） */
 export async function activateConnector(id: string): Promise<void> {
-  const res = await fetch(`/api/connectors/${id}/activate`, { method: 'POST' });
+  const res = await apiFetch(`/api/connectors/${id}/activate`, { method: 'POST' });
   await unwrap<void>(res);
 }
 
 /** 浏览库表清单 */
 export async function fetchConnectorTables(id: string): Promise<TableInfo[]> {
-  const res = await fetch(`/api/connectors/${id}/tables`);
+  const res = await apiFetch(`/api/connectors/${id}/tables`);
   return unwrap<TableInfo[]>(res);
 }
 
 /** 表数据预览（前 50 行） */
 export async function fetchTablePreview(id: string, table: string): Promise<TablePreview> {
-  const res = await fetch(`/api/connectors/${id}/tables/${encodeURIComponent(table)}/preview`);
+  const res = await apiFetch(`/api/connectors/${id}/tables/${encodeURIComponent(table)}/preview`);
   return unwrap<TablePreview>(res);
 }

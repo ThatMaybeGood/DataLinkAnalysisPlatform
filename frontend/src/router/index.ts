@@ -1,8 +1,15 @@
 import { createRouter, createWebHistory } from 'vue-router';
+import { getToken } from '@/api';
 
 const router = createRouter({
   history: createWebHistory(),
   routes: [
+    {
+      path: '/login',
+      name: 'login',
+      component: () => import('@/views/LoginView.vue'),
+      meta: { public: true, title: '登录' },
+    },
     {
       path: '/',
       component: () => import('@/layouts/MainLayout.vue'),
@@ -19,6 +26,17 @@ const router = createRouter({
     },
     { path: '/:pathMatch(.*)*', redirect: '/' },
   ],
+});
+
+// 路由守卫：未登录访问受保护页 → 登录页；已登录访问登录页 → 工作台
+router.beforeEach((to) => {
+  if (!to.meta.public && !getToken()) {
+    return { name: 'login' };
+  }
+  if (to.name === 'login' && getToken()) {
+    return { path: '/' };
+  }
+  return true;
 });
 
 export default router;

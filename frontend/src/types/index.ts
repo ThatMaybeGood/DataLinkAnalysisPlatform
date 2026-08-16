@@ -220,3 +220,10 @@ export interface ConnectorSavePayload {
   config?: string;                     // JSON 扩展参数
   enabled?: number;                    // 默认 1
 }
+
+/** 登录结果（来自 /api/auth/login 与 /api/auth/me） */
+export interface LoginResult {
+  token: string;                       // JWT（/me 恒为 null）
+  displayName: string;                 // 显示名
+  roles: string[];                     // 角色集合
+}
