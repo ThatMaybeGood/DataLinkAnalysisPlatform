@@ -15,6 +15,12 @@ import java.util.List;
 public interface SysUserMapper extends BaseMapper<SysUser> {
 
     /**
+     * 按登录名查询用户主键
+     */
+    @Select("SELECT id FROM sys_user WHERE username = #{username}")
+    Long selectIdByUsername(@Param("username") String username);
+
+    /**
      * 查询用户绑定的角色编码列表（RBAC）
      */
     @Select("SELECT r.role_code FROM sys_role r JOIN sys_user_role ur ON r.id = ur.role_id WHERE ur.user_id = #{userId}")

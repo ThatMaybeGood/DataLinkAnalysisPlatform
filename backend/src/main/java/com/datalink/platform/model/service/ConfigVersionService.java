@@ -18,6 +18,9 @@ import com.datalink.platform.model.mapper.RouteMapper;
 import com.datalink.platform.monitor.entity.Checkpoint;
 import com.datalink.platform.monitor.mapper.CheckpointMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -39,6 +42,16 @@ public class ConfigVersionService {
 
     /** 记录一个版本：version = 该目标已有最大 version + 1，status 默认 PUBLISHED */
     public void record(String targetType, Long targetId, String contentJson, String changeNote, String operator) {
+        // 操作人留痕：显式传入优先；否则取当前登录用户；仍取不到则记 system
+        if (operator == null || operator.isBlank()) {
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            if (authentication != null && !(authentication instanceof AnonymousAuthenticationToken)
+                    && authentication.getName() != null && !authentication.getName().isBlank()) {
+                operator = authentication.getName();
+            } else {
+                operator = "system";
+            }
+        }
         List<ConfigVersion> latest = configVersionMapper.selectList(Wrappers.lambdaQuery(ConfigVersion.class)
                 .eq(ConfigVersion::getTargetType, targetType)
                 .eq(ConfigVersion::getTargetId, targetId)

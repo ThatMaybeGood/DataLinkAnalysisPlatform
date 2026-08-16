@@ -19,7 +19,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * @Transactional 回滚 POST 写入，避免污染其他测试。
  */
 @SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:datalink_model_test;MODE=MySQL;DATABASE_TO_LOWER=TRUE;NON_KEYWORDS=VALUE;DB_CLOSE_DELAY=-1")
-@AutoConfigureMockMvc
+@AutoConfigureMockMvc(addFilters = false)
 @Transactional
 class ModelingControllerTest {
 
