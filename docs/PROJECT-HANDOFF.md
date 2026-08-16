@@ -102,7 +102,8 @@
 - [x] **CMDB 连接器**：数据池新增 HTTP/API 型连接器（connectorType=CMDB）——`POST /{id}/test`（HTTP 连通，dbVersion=CMDB API）、`/sync`（采集资产生成候选）、`/candidates`（预览）、`/import`（一键导入 node，按 code 判重）；实测本地 CMDB 桩采集 3 资产→导入 3 节点
 - [x] **开放 API**：`/api/open/**`（POST 上报实例（按 bizNo 幂等）、GET 流程/节点、POST 触发检测）+ `X-API-Key` Token 鉴权（`datalink.openapi.token`，独立于登录 JWT，无效 key→401）；实测无 key 401 / 有效 key 200 / 上报幂等
 - [x] 修复：SaveConnectorRequest 支持 connectorType、密码仅 DB 类型必填；SecurityConfig 过滤器 order
-- [x] 后端 **73 测试全绿**（新增 OpenApi 5 + CmdbService 7）
+- [x] 前端可视化：数据接入页 CMDB 类型表单（apiUrl/apiKey）+ 同步/候选/导入；系统管理页开放 API 卡（Token/接口清单，仅管理员，`GET /api/system/openapi`）
+- [x] 后端 **76 测试全绿**（新增 OpenApi 5 + CmdbService 7 + SystemController 3）
 
 ### 文档
 - [x] 项目文档书 v1.1 + config_version 主键修正
@@ -163,11 +164,10 @@ M3 剩余（CMDB 连接器 + 开放 API）已交付。剩余：
 2. **排查模式 3D 深化**、流向动画
 
 **补充/远期**：
-3. 前端 CMDB 连接器表单（数据池页选 CMDB 类型 + apiUrl/apiKey，当前后端已可用、前端表单待加）
-4. Excel/日志/IoT 连接器类型、开放 API 生态（Token 管理页）
-5. PostgreSQL 实机验证（方言已就绪待实机）、数据池接 Oracle（新增方言+驱动）
-6. 邮件/钉钉通知渠道、定时检测调度、自动动作总开关与可回滚、路线对比页
-7. 自动血缘解析、AI 辅助排查、制造场景模板
+3. Excel/日志/IoT 连接器类型、开放 API 生态（Token 管理/轮换页）
+4. PostgreSQL 实机验证（方言已就绪待实机）、数据池接 Oracle（新增方言+驱动）
+5. 邮件/钉钉通知渠道、定时检测调度、自动动作总开关与可回滚、路线对比页
+6. 自动血缘解析、AI 辅助排查、制造场景模板
 7. 制造场景模板、开放 API 生态
 
 ## 七、用户工作偏好（重要）
@@ -180,6 +180,6 @@ M3 剩余（CMDB 连接器 + 开放 API）已交付。剩余：
 
 ## 八、续接起点
 
-**当前任务 = M4（3D 视图 / 大屏）+ 补充（前端 CMDB 表单、开放 API 生态）**。M0~M3 + RBAC + M3 补充（CMDB/开放 API）均已交付并推送到 GitHub（后端 73 测试全绿）。
-新会话第一步：读本文档 → `cd backend && mvn spring-boot:run` 起服务 → 浏览器打开 http://localhost:5173 登录（admin/admin123），从 M4 3D/大屏 或 前端 CMDB 表单开始。
-前端已完整可用：登录页 + 关系网画布（排查/路径/影响面）+ 看板 + 告警 + 检测点 + 版本 + 数据接入（DB 连接器；CMDB 后端可用、表单待加）。
+**当前任务 = M4（3D 视图 / 大屏）+ 补充（开放 API 生态、更多连接器类型）**。M0~M3 + RBAC + M3 补充（CMDB/开放 API 含前端可视化）均已交付并推送到 GitHub（后端 76 测试全绿）。
+新会话第一步：读本文档 → `cd backend && mvn spring-boot:run` 起服务 → 浏览器打开 http://localhost:5173 登录（admin/admin123），从 M4 3D/大屏 开始。
+前端已完整可用：登录页 + 关系网画布（排查/路径/影响面）+ 看板 + 告警 + 检测点 + 版本 + 数据接入（DB + CMDB 连接器可视化）+ 系统管理（运行信息/开放 API 卡）。
