@@ -65,18 +65,29 @@ public class ConnectorServiceImpl implements ConnectorService {
 
     @Override
     public ConnectorVO create(SaveConnectorRequest req) {
-        ConnectorDbType.from(req.getDbType()); // 校验类型
-        if (req.getPassword() == null || req.getPassword().isEmpty()) {
+        String type = (req.getConnectorType() == null || req.getConnectorType().isBlank())
+                ? "DB" : req.getConnectorType().trim().toUpperCase();
+        if ("DB".equals(type)) {
+            ConnectorDbType.from(req.getDbType()); // 校验数据库类型
+            if (req.getDatabaseName() == null || req.getDatabaseName().isBlank()) {
+                throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "库名不能为空");
+            }
+            if (req.getUsername() == null || req.getUsername().isBlank()) {
+                throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "用户名不能为空");
+            }
+        }
+        if ("DB".equals(type) && (req.getPassword() == null || req.getPassword().isEmpty())) {
             throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "密码不能为空");
         }
         Connector c = new Connector();
-        c.setConnectorType("DB");
-        c.setDbType(req.getDbType());
+        c.setConnectorType(type);
+        c.setDbType("DB".equals(type) ? req.getDbType() : null);
         c.setName(req.getName());
         c.setHost(req.getHost());
         c.setPort(req.getPort());
         c.setUsername(req.getUsername());
-        c.setEncryptedPwd(aesUtil.encrypt(req.getPassword()));
+        c.setEncryptedPwd(req.getPassword() == null || req.getPassword().isEmpty()
+                ? null : aesUtil.encrypt(req.getPassword()));
         c.setDatabaseName(req.getDatabaseName());
         c.setSchemaName(req.getSchemaName());
         c.setConfig(req.getConfig());
@@ -89,8 +100,13 @@ public class ConnectorServiceImpl implements ConnectorService {
     @Override
     public ConnectorVO update(Long id, SaveConnectorRequest req) {
         Connector c = require(id);
-        ConnectorDbType.from(req.getDbType()); // 校验类型
-        c.setDbType(req.getDbType());
+        String type = (req.getConnectorType() == null || req.getConnectorType().isBlank())
+                ? c.getConnectorType() : req.getConnectorType().trim().toUpperCase();
+        if ("DB".equals(type)) {
+            ConnectorDbType.from(req.getDbType()); // 校验数据库类型
+        }
+        c.setConnectorType(type);
+        c.setDbType("DB".equals(type) ? req.getDbType() : null);
         c.setName(req.getName());
         c.setHost(req.getHost());
         c.setPort(req.getPort());
