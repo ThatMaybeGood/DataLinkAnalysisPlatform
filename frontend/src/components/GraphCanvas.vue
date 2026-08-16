@@ -16,13 +16,16 @@ import { Graph } from '@antv/g6';
 import type { GraphData, NodeData, EdgeData } from '@antv/g6';
 import type { GraphEdge, GraphNode, Route } from '@/types';
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   nodes: GraphNode[];
   edges: GraphEdge[];
   routes: Route[];
   activeRouteId: string | null;
+  layoutType?: 'network' | 'route';
   focusNodeId?: string | null;
-}>();
+}>(), {
+  layoutType: 'network',
+});
 
 const emit = defineEmits<{
   (e: 'node-click', node: GraphNode): void;
@@ -61,6 +64,20 @@ function nodeSize(degree: number): number {
   return 30 + degree * 4;
 }
 
+/** 布局按模式切换：network → 同心圆（现有）；route → dagre 从左到右（起点在左、终点在右，像地图路线） */
+function resolveLayout() {
+  if (props.layoutType === 'route') {
+    return { type: 'dagre', rankdir: 'LR', nodesep: 48, ranksep: 80, align: 'UL' } as unknown as never;
+  }
+  return {
+    type: 'concentric',
+    preventOverlap: true,
+    minNodeSpacing: 42,
+    maxLevelDiff: 90,
+    nodeSize: (d: any) => nodeSize(d?.data?.degree ?? d?.degree ?? 0),
+  } as unknown as never;
+}
+
 function toNodeData(n: GraphNode, degree: Map<string, number>): NodeData {
   // 注意：data 里只放展示所需字段，绝不放 id/source/target（避免 G6 元素解析混乱触发 getPorts 崩溃）
   return {
@@ -82,13 +99,16 @@ function toEdgeData(e: GraphEdge): EdgeData {
   return { id: 'e' + e.id, source: e.source, target: e.target, data: { relationType: e.relationType } } as unknown as EdgeData;
 }
 
-/** 路线高亮：高亮路线内节点与边，其余变暗（边元素 id 带 'e' 前缀，与 toEdgeData 一致） */
+/** 路线高亮：高亮路线内节点与边，其余变暗（边元素 id 带 'e' 前缀，与 toEdgeData 一致）
+ *  只对当前模型里已存在的元素设置状态——模式/路线切换瞬间「新数据已传、旧模型未换」，
+ *  setElementState 会对模型里不存在的 id 抛「Unknown element type」，这里预先过滤 */
 function applyHighlight(routeId: string | null) {
   if (!graph) return;
+  const g = graph;
   const reset: Record<string, string[]> = {};
-  props.nodes.forEach((n) => (reset[n.id] = []));
-  props.edges.forEach((e) => (reset['e' + e.id] = []));
-  graph.setElementState(reset);
+  props.nodes.forEach((n) => { if (g.hasNode(n.id)) reset[n.id] = []; });
+  props.edges.forEach((e) => { const eid = 'e' + e.id; if (g.hasEdge(eid)) reset[eid] = []; });
+  g.setElementState(reset);
 
   if (!routeId) return;
   const route = props.routes.find((r) => r.id === routeId);
@@ -98,9 +118,9 @@ function applyHighlight(routeId: string | null) {
     props.edges.filter((e) => set.has(e.source) && set.has(e.target)).map((e) => 'e' + e.id),
   );
   const states: Record<string, string[]> = {};
-  props.nodes.forEach((n) => (states[n.id] = set.has(n.id) ? ['highlight'] : ['dimmed']));
-  props.edges.forEach((e) => (states['e' + e.id] = edgeSet.has('e' + e.id) ? ['highlight'] : ['dimmed']));
-  graph.setElementState(states);
+  props.nodes.forEach((n) => { if (g.hasNode(n.id)) states[n.id] = set.has(n.id) ? ['highlight'] : ['dimmed']; });
+  props.edges.forEach((e) => { const eid = 'e' + e.id; if (g.hasEdge(eid)) states[eid] = edgeSet.has(eid) ? ['highlight'] : ['dimmed']; });
+  g.setElementState(states);
 }
 
 /** 读取容器实际尺寸（clientWidth/Height 优先，offset 兜底） */
@@ -153,6 +173,16 @@ function scheduleFitView() {
   }, 60);
 }
 
+let renderChain: Promise<void> = Promise.resolve();
+
+/** 串行化渲染：模式切换时布局切换与数据更新会并发触发 render，排队避免竞态 */
+function queueRender(): Promise<void> {
+  renderChain = renderChain
+    .then(() => render())
+    .catch((err) => console.error('[GraphCanvas] 渲染失败:', err));
+  return renderChain;
+}
+
 async function render() {
   renderError.value = null;
   if (!graph) return;
@@ -197,7 +227,7 @@ function observeResize() {
 
 /** 错误条上的重试 */
 function retryRender() {
-  render();
+  queueRender();
 }
 
 onMounted(async () => {
@@ -215,14 +245,7 @@ onMounted(async () => {
       height,
       padding: 40, // fitView 适配时留 40 内边距
       behaviors: ['drag-canvas', 'zoom-canvas', 'drag-element'],
-      layout: {
-        // 球状体布局：concentric 同心圆，连接度高的枢纽居中、外围按关联度成环（确定性布局，规避力导向异步空白）
-        type: 'concentric',
-        preventOverlap: true,
-        minNodeSpacing: 42,
-        maxLevelDiff: 90,
-        nodeSize: (d: any) => nodeSize(d?.data?.degree ?? d?.degree ?? 0),
-      } as unknown as never,
+      layout: resolveLayout(), // network → concentric 球状；route → dagre 从左到右
       node: {
         style: {
           size: (d: any) => nodeSize(d?.data?.degree ?? d?.degree ?? 0),
@@ -263,7 +286,7 @@ onMounted(async () => {
 
     observeResize();
 
-    await render();
+    await queueRender();
 
     graph.on('node:click', (evt: any) => {
       const target = evt?.target as any;
@@ -277,10 +300,18 @@ onMounted(async () => {
   }
 });
 
-// 切换路线 → 只更新高亮（不重排布局）
-watch(() => props.activeRouteId, (id) => applyHighlight(id));
-// 数据变化 → 重渲染
-watch(() => [props.nodes, props.edges], () => render());
+// 切换路线 → 只更新高亮（不重排布局）；切换瞬间新数据未渲染，可能命中旧模型，容错处理
+watch(() => props.activeRouteId, (id) => {
+  try { applyHighlight(id); } catch (err) { console.warn('[GraphCanvas] 高亮失败:', err); }
+});
+// 数据变化 → 重渲染（串行化排队）
+watch(() => [props.nodes, props.edges], () => queueRender());
+// 布局类型切换（全路网 ↔ 路线）→ 换布局并重排
+watch(() => props.layoutType, () => {
+  if (!graph) return;
+  graph.setLayout(resolveLayout());
+  queueRender();
+});
 // 搜索聚焦
 watch(() => props.focusNodeId, (id) => { if (id && graph) graph.focusElement(id, { easing: 'linear', duration: 300 }); });
 

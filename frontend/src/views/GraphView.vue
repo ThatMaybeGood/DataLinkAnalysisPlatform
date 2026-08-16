@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /** 关系网核心页：路网视图 + 路线高亮 + 站点详情 + 路线条（地铁式） */
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { fetchEdges, fetchGraphTrace, fetchImpact, fetchNodes, fetchProcesses, fetchRoutes, queryGraphPaths } from '@/api';
 import type { GraphPathResult, GraphTrace, ImpactResult } from '@/api';
@@ -9,6 +9,9 @@ import GraphCanvas from '@/components/GraphCanvas.vue';
 import NodeDetailPanel from '@/components/NodeDetailPanel.vue';
 import Icon from '@/components/Icon.vue';
 
+/** 3D 画布按需加载：仅进入 3D 模式才拉取 three.js（约 373KB gzip），2D 页面保持轻量 */
+const Graph3DCanvas = defineAsyncComponent(() => import('@/components/Graph3DCanvas.vue'));
+
 const route = useRoute();
 const selectedProcessId = ref('p1');
 const activeRouteId = ref<string | null>('r1');
@@ -16,6 +19,20 @@ const viewMode = ref<'network' | 'route'>('route');
 const selectedNode = ref<GraphNode | null>(null);
 const keyword = ref('');
 const focusNodeId = ref<string | null>(null);
+
+/* —— 2D ⇄ 3D 切换 —— */
+const viewMode3d = ref(false);           // false=2D 关系网 / true=3D 星系
+const autoRotate3d = ref(true);          // 3D 自动旋转
+/** 3D 画布实例（异步组件，暴露 resetView） */
+const canvas3dRef = ref<{ resetView: () => void } | null>(null);
+
+function toggleAutoRotate3d() {
+  autoRotate3d.value = !autoRotate3d.value;
+}
+
+function resetView3d() {
+  canvas3dRef.value?.resetView();
+}
 
 const nodes = ref<GraphNode[]>([]);
 const edges = ref<GraphEdge[]>([]);
@@ -35,6 +52,22 @@ const colorOf: Record<string, string> = {
 const routesOfProcess = computed(() => routes.value.filter((r) => r.processId === selectedProcessId.value));
 const activeRoute = computed(() => routes.value.find((r) => r.id === activeRouteId.value) ?? null);
 const canvasActiveRouteId = computed(() => (viewMode.value === 'route' ? activeRouteId.value : null));
+
+/** 路线视图画布节点：只取当前路线站点（按 nodeIds 顺序），其余情况给完整节点 */
+const routeViewNodes = computed(() => {
+  if (viewMode.value !== 'route' || !activeRoute.value) return nodes.value;
+  const byId = new Map(nodes.value.map((n) => [n.id, n]));
+  return activeRoute.value.nodeIds
+    .map((id) => byId.get(id) ?? null)
+    .filter((n): n is GraphNode => n !== null);
+});
+
+/** 路线视图画布边：只取两个端点都在路线内的边（路线子图），其余情况给完整边 */
+const routeViewEdges = computed(() => {
+  if (viewMode.value !== 'route' || !activeRoute.value) return edges.value;
+  const set = new Set(activeRoute.value.nodeIds);
+  return edges.value.filter((e) => set.has(e.source) && set.has(e.target));
+});
 
 function selectProcess(id: string) {
   selectedProcessId.value = id;
@@ -221,6 +254,10 @@ async function loadGraph() {
     edges.value = e;
     processes.value = p;
     routes.value = r;
+    // 对齐真实流程 id（后端为 '1'/'2'，前端默认 'p1'）：默认选中第一个流程及其默认路线
+    if (p.length && !p.some((x) => x.id === selectedProcessId.value)) {
+      selectProcess(p[0].id);
+    }
   } catch (err) {
     loadError.value = err instanceof Error ? err.message : '关系网数据加载失败';
   } finally {
@@ -262,6 +299,30 @@ onBeforeUnmount(() => clearPathTimer());
             @click="viewMode = 'network'; activeRouteId = null; selectedNode = null"
           >全路网</button>
         </div>
+
+        <!-- 2D ⇄ 3D 切换 -->
+        <div class="view-switch">
+          <button
+            class="view-switch__btn" :class="{ 'view-switch__btn--active': !viewMode3d }"
+            @click="viewMode3d = false"
+          >2D 关系网</button>
+          <button
+            class="view-switch__btn" :class="{ 'view-switch__btn--active': viewMode3d }"
+            @click="viewMode3d = true"
+          >3D 星系</button>
+        </div>
+        <!-- 3D 模式下：自动旋转 / 重置视角 -->
+        <template v-if="viewMode3d">
+          <button
+            class="btn btn-ghost btn-sm tool3d-btn" :class="{ 'tool3d-btn--active': autoRotate3d }"
+            @click="toggleAutoRotate3d"
+          >
+            <Icon name="refresh" :size="14" />自动旋转
+          </button>
+          <button class="btn btn-ghost btn-sm tool3d-btn" @click="resetView3d">
+            <Icon name="target" :size="14" />重置视角
+          </button>
+        </template>
       </div>
 
       <div class="row">
@@ -315,9 +376,20 @@ onBeforeUnmount(() => clearPathTimer());
         <button class="retry-btn" @click="loadGraph">重试</button>
       </div>
 
-      <GraphCanvas
+      <Graph3DCanvas
+        v-if="viewMode3d"
+        ref="canvas3dRef"
         :nodes="nodes" :edges="edges" :routes="routes"
         :active-route-id="canvasActiveRouteId"
+        :focus-node-id="focusNodeId"
+        :auto-rotate="autoRotate3d"
+        @node-click="onNodeClick"
+      />
+      <GraphCanvas
+        v-else
+        :nodes="routeViewNodes" :edges="routeViewEdges" :routes="routes"
+        :active-route-id="canvasActiveRouteId"
+        :layout-type="viewMode === 'route' ? 'route' : 'network'"
         :focus-node-id="focusNodeId"
         @node-click="onNodeClick"
       />
@@ -448,6 +520,30 @@ onBeforeUnmount(() => clearPathTimer());
 .chip-tag--alt { background: var(--warning-soft); color: var(--warning); }
 .route-chip--active .chip-tag { background: rgba(255,255,255,.22); color: #fff; }
 .route-chip--active .chip-tag--alt { background: rgba(255,255,255,.22); color: #fff; }
+
+/* —— 2D ⇄ 3D 分段切换 —— */
+.view-switch {
+  display: inline-flex; align-items: center; margin-left: auto;
+  border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
+  background: var(--surface-2); flex-shrink: 0;
+}
+.view-switch__btn {
+  height: 28px; padding: 0 12px; border: none; border-radius: 0;
+  background: transparent; color: var(--fg-muted); font-size: 12.5px;
+  cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+  transition: all .15s; white-space: nowrap;
+}
+.view-switch__btn + .view-switch__btn { border-left: 1px solid var(--border); }
+.view-switch__btn:hover { color: var(--accent); background: var(--surface-3); }
+.view-switch__btn--active { background: var(--accent); color: #fff; font-weight: 500; }
+.view-switch__btn--active:hover { background: var(--accent-hover); color: #fff; }
+
+/* —— 3D 工具按钮（自动旋转 / 重置视角） —— */
+.tool3d-btn { flex-shrink: 0; }
+.tool3d-btn--active {
+  background: var(--accent-soft); color: var(--accent);
+  border-color: var(--accent-border); font-weight: 500;
+}
 
 .graph-body {
   position: relative; flex: 1; background: var(--canvas-bg);
