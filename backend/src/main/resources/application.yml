@@ -50,6 +50,9 @@ datalink:
     # 本地开发密钥；生产必须通过环境变量覆盖（DATALINK_JWT_SECRET）
     secret: ${DATALINK_JWT_SECRET:datalink-local-dev-secret-key-change-me-0123456789}
     expire-seconds: 86400   # 24 小时
+  openapi:
+    # 开放 API Token（外部系统集成鉴权，请求头 X-API-Key 携带）；生产必须通过环境变量覆盖（DATALINK_OPENAPI_TOKEN）
+    token: ${DATALINK_OPENAPI_TOKEN:datalink-openapi-dev-token-001}
 
 logging:
   level:

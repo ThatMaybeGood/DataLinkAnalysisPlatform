@@ -1,13 +1,22 @@
 package com.datalink.platform.datasource.controller;
 
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.datalink.platform.common.PageResult;
 import com.datalink.platform.common.Result;
+import com.datalink.platform.common.enums.ResultCode;
+import com.datalink.platform.common.exception.BusinessException;
+import com.datalink.platform.datasource.dto.CandidateNodeVO;
 import com.datalink.platform.datasource.dto.ConnectorVO;
 import com.datalink.platform.datasource.dto.PreviewResult;
 import com.datalink.platform.datasource.dto.SaveConnectorRequest;
 import com.datalink.platform.datasource.dto.TableInfo;
 import com.datalink.platform.datasource.dto.TestResult;
+import com.datalink.platform.datasource.entity.Connector;
+import com.datalink.platform.datasource.mapper.ConnectorMapper;
+import com.datalink.platform.datasource.service.CmdbService;
 import com.datalink.platform.datasource.service.ConnectorService;
+import com.datalink.platform.model.entity.Node;
+import com.datalink.platform.model.mapper.NodeMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -31,6 +40,9 @@ import java.util.List;
 public class ConnectorController {
 
     private final ConnectorService connectorService;
+    private final ConnectorMapper connectorMapper;
+    private final NodeMapper nodeMapper;
+    private final CmdbService cmdbService;
 
     /** 分页查询连接器列表 */
     @GetMapping
@@ -88,5 +100,54 @@ public class ConnectorController {
     @GetMapping("/{id}/tables/{table}/preview")
     public Result<PreviewResult> preview(@PathVariable Long id, @PathVariable String table) {
         return Result.ok(connectorService.preview(id, table));
+    }
+
+    /** 采集 CMDB 资产候选并缓存（返回候选数） */
+    @PostMapping("/{id}/sync")
+    public Result<Integer> sync(@PathVariable Long id) {
+        List<CandidateNodeVO> candidates = cmdbService.fetchAssets(requireConnector(id));
+        cmdbService.storeCandidates(id, candidates);
+        return Result.ok(candidates.size());
+    }
+
+    /** 查看 CMDB 资产候选 */
+    @GetMapping("/{id}/candidates")
+    public Result<List<CandidateNodeVO>> candidates(@PathVariable Long id) {
+        return Result.ok(cmdbService.getCandidates(id));
+    }
+
+    /** 一键导入候选为站点节点（code 判重，导入后清空候选） */
+    @PostMapping("/{id}/import")
+    public Result<Integer> importNodes(@PathVariable Long id) {
+        List<CandidateNodeVO> candidates = cmdbService.getCandidates(id);
+        int count = 0;
+        for (int i = 0; i < candidates.size(); i++) {
+            CandidateNodeVO cand = candidates.get(i);
+            String code = "CMDB_" + id + "_" + i;
+            if (nodeMapper.selectCount(Wrappers.lambdaQuery(Node.class).eq(Node::getCode, code)) > 0) {
+                continue;
+            }
+            Node node = new Node();
+            node.setName(cand.getName());
+            node.setNodeType(cand.getType() == null || cand.getType().isBlank() ? "SYSTEM" : cand.getType());
+            node.setCode(code);
+            node.setLevel("L3");
+            node.setStatus("ACTIVE");
+            node.setDescription(cand.getDescription());
+            node.setOwner(cand.getOwner());
+            nodeMapper.insert(node);
+            count++;
+        }
+        cmdbService.clear(id);
+        return Result.ok(count);
+    }
+
+    /** 查询连接器实体，不存在抛 404 */
+    private Connector requireConnector(Long id) {
+        Connector c = connectorMapper.selectById(id);
+        if (c == null) {
+            throw new BusinessException(ResultCode.NOT_FOUND.getCode(), "连接不存在");
+        }
+        return c;
     }
 }

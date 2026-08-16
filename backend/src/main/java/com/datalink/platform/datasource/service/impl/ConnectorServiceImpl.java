@@ -16,6 +16,7 @@ import com.datalink.platform.datasource.dto.TestResult;
 import com.datalink.platform.datasource.entity.Connector;
 import com.datalink.platform.datasource.mapper.ConnectorMapper;
 import com.datalink.platform.datasource.pool.ConnectionPoolRegistry;
+import com.datalink.platform.datasource.service.CmdbService;
 import com.datalink.platform.datasource.service.ConnectorService;
 import com.datalink.platform.datasource.util.AesUtil;
 import lombok.RequiredArgsConstructor;
@@ -47,6 +48,7 @@ public class ConnectorServiceImpl implements ConnectorService {
     private final ConnectorMapper connectorMapper;
     private final AesUtil aesUtil;
     private final ConnectionPoolRegistry poolRegistry;
+    private final CmdbService cmdbService;
 
     @Override
     public PageResult<ConnectorVO> page(int page, int size, String keyword) {
@@ -117,6 +119,23 @@ public class ConnectorServiceImpl implements ConnectorService {
     @Override
     public TestResult test(Long id) {
         Connector c = require(id);
+        // CMDB 型走 HTTP API 连通测试，其余类型保持 JDBC 逻辑
+        if ("CMDB".equalsIgnoreCase(c.getConnectorType())) {
+            long start = System.currentTimeMillis();
+            try {
+                cmdbService.fetchAssets(c);
+                long latencyMs = System.currentTimeMillis() - start;
+                c.setLastTestStatus("OK");
+                c.setLastTestTime(LocalDateTime.now());
+                connectorMapper.updateById(c);
+                return new TestResult(true, latencyMs, "CMDB API", null);
+            } catch (Exception e) {
+                c.setLastTestStatus("FAIL");
+                c.setLastTestTime(LocalDateTime.now());
+                connectorMapper.updateById(c);
+                return new TestResult(false, null, null, shortMessage(e));
+            }
+        }
         DbDialect d = DbDialectFactory.ofCode(c.getDbType());
         String url = d.buildJdbcUrl(c.getHost(), c.getPort() == null ? 0 : c.getPort(), c.getDatabaseName());
         long start = System.currentTimeMillis();

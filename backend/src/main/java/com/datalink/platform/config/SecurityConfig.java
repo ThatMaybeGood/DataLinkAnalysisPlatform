@@ -34,14 +34,16 @@ public class SecurityConfig {
      * 安全过滤链：无状态 + RBAC 授权 + JWT 前置过滤器
      */
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthenticationFilter jwtAuthenticationFilter) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthenticationFilter jwtAuthenticationFilter,
+                                                   OpenApiAuthFilter openApiAuthFilter) throws Exception {
         http.csrf(AbstractHttpConfigurer::disable)
                 .cors(Customizer.withDefaults())
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         // 公开接口：登录 / 健康检查 / 监控端点 / 接口文档 / 错误页
                         .requestMatchers("/api/auth/login", "/api/health", "/actuator/**",
-                                "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**", "/error").permitAll()
+                                "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**", "/error",
+                                "/api/open/**").permitAll()
                         // CORS 预检
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         // 建模/数据池写操作：仅 ADMIN / MODELER
@@ -65,6 +67,7 @@ public class SecurityConfig {
                             response.setContentType("application/json;charset=UTF-8");
                             response.getWriter().write("{\"code\":403,\"message\":\"无权限\",\"data\":null}");
                         }))
+                .addFilterBefore(openApiAuthFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
