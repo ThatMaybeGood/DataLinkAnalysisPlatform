@@ -3,6 +3,7 @@ package com.datalink.platform.model.service;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.datalink.platform.common.enums.ResultCode;
 import com.datalink.platform.common.exception.BusinessException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.datalink.platform.model.dto.EdgeVO;
 import com.datalink.platform.model.dto.InstanceStatsVO;
 import com.datalink.platform.model.dto.NodeVO;
@@ -48,6 +49,8 @@ public class ModelingService {
     private final ProcessMapper processMapper;
     private final RouteMapper routeMapper;
     private final RouteNodeMapper routeNodeMapper;
+    private final ConfigVersionService configVersionService;
+    private final ObjectMapper objectMapper;
 
     // ---------- 节点 ----------
 
@@ -62,6 +65,7 @@ public class ModelingService {
         n.setOwner(req.getOwner());
         n.setDescription(req.getDescription());
         nodeMapper.insert(n);
+        recordVersion("NODE", n.getId(), n, "新建节点「" + n.getName() + "」");
         return toNodeVO(n);
     }
 
@@ -90,12 +94,17 @@ public class ModelingService {
             n.setDescription(req.getDescription());
         }
         nodeMapper.updateById(n);
+        recordVersion("NODE", id, n, "更新节点「" + n.getName() + "」");
         return toNodeVO(n);
     }
 
-    /** 删除节点 */
+    /** 删除节点：先取快照留痕再删 */
     public void deleteNode(Long id) {
-        nodeMapper.deleteById(id);
+        Node n = nodeMapper.selectById(id);
+        if (n != null) {
+            nodeMapper.deleteById(id);
+            recordVersion("NODE", id, n, "删除节点「" + n.getName() + "」");
+        }
     }
 
     // ---------- 路网边 ----------
@@ -130,6 +139,7 @@ public class ModelingService {
         p.setStartNodeId(req.getStartNodeId());
         p.setEndNodeId(req.getEndNodeId());
         processMapper.insert(p);
+        recordVersion("PROCESS", p.getId(), p, "新建流程「" + p.getName() + "」");
         return toProcessVO(p, nodeNameMap());
     }
 
@@ -155,19 +165,21 @@ public class ModelingService {
             p.setEndNodeId(req.getEndNodeId());
         }
         processMapper.updateById(p);
+        recordVersion("PROCESS", id, p, "更新流程「" + p.getName() + "」");
         return toProcessVO(p, nodeNameMap());
     }
 
     /** 删除流程：级联删除其下所有路线及路线站点，再删流程 */
     @Transactional
     public void deleteProcess(Long id) {
-        requireProcess(id);
+        Process p = requireProcess(id);
         List<Route> routes = routeMapper.selectList(Wrappers.lambdaQuery(Route.class).eq(Route::getProcessId, id));
         for (Route route : routes) {
             routeNodeMapper.delete(Wrappers.lambdaQuery(RouteNode.class).eq(RouteNode::getRouteId, route.getId()));
         }
         routeMapper.delete(Wrappers.lambdaQuery(Route.class).eq(Route::getProcessId, id));
         processMapper.deleteById(id);
+        recordVersion("PROCESS", id, p, "删除流程「" + p.getName() + "」");
     }
 
     // ---------- 路线 ----------
@@ -182,6 +194,7 @@ public class ModelingService {
         r.setStatus(req.getStatus());
         routeMapper.insert(r);
         insertRouteNodes(r.getId(), req.getNodeIds());
+        recordVersion("ROUTE", r.getId(), r, "新建路线「" + r.getName() + "」");
         return toRouteVO(r);
     }
 
@@ -200,15 +213,17 @@ public class ModelingService {
         routeMapper.updateById(r);
         routeNodeMapper.delete(Wrappers.lambdaQuery(RouteNode.class).eq(RouteNode::getRouteId, id));
         insertRouteNodes(id, req.getNodeIds());
+        recordVersion("ROUTE", id, r, "更新路线「" + r.getName() + "」");
         return toRouteVO(r);
     }
 
     /** 删除路线：连同路线站点一并删除 */
     @Transactional
     public void deleteRoute(Long id) {
-        requireRoute(id);
+        Route r = requireRoute(id);
         routeNodeMapper.delete(Wrappers.lambdaQuery(RouteNode.class).eq(RouteNode::getRouteId, id));
         routeMapper.deleteById(id);
+        recordVersion("ROUTE", id, r, "删除路线「" + r.getName() + "」");
     }
 
     // ---------- 内部辅助 ----------
@@ -225,6 +240,15 @@ public class ModelingService {
             rn.setSeq(seq++);
             rn.setNodeId(nodeId);
             routeNodeMapper.insert(rn);
+        }
+    }
+
+    /** 配置版本留痕：序列化或写入异常不影响建模主流程 */
+    private void recordVersion(String targetType, Long targetId, Object entity, String note) {
+        try {
+            configVersionService.record(targetType, targetId, objectMapper.writeValueAsString(entity), note, "system");
+        } catch (Exception e) {
+            // 留痕失败不阻断主流程
         }
     }
 

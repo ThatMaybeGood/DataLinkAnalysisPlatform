@@ -2,11 +2,13 @@ package com.datalink.platform.monitor.controller;
 
 import com.datalink.platform.common.Result;
 import com.datalink.platform.monitor.dto.AlertVO;
+import com.datalink.platform.monitor.dto.SaveAlertRequest;
 import com.datalink.platform.monitor.service.AlertService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -27,6 +29,12 @@ public class AlertController {
     @GetMapping
     public Result<List<AlertVO>> list(@RequestParam(required = false) String status) {
         return Result.ok(alertService.list(status));
+    }
+
+    /** 创建告警（自动按目标级别匹配处置组合并触发干预） */
+    @PostMapping
+    public Result<AlertVO> create(@RequestBody SaveAlertRequest req) {
+        return Result.ok(alertService.create(req));
     }
 
     /** 解决告警 */

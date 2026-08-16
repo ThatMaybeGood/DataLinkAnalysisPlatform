@@ -2,12 +2,15 @@ package com.datalink.platform.monitor.controller;
 
 import com.datalink.platform.common.Result;
 import com.datalink.platform.monitor.dto.CreateTicketRequest;
+import com.datalink.platform.monitor.dto.SaveTicketRequest;
 import com.datalink.platform.monitor.dto.TicketVO;
 import com.datalink.platform.monitor.service.TicketService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -34,5 +37,11 @@ public class TicketController {
     @PostMapping
     public Result<TicketVO> create(@Validated @RequestBody CreateTicketRequest req) {
         return Result.ok(ticketService.create(req));
+    }
+
+    /** 更新工单（状态流转/处理人/描述） */
+    @PutMapping("/{id}")
+    public Result<TicketVO> update(@PathVariable Long id, @RequestBody SaveTicketRequest req) {
+        return Result.ok(ticketService.update(id, req));
     }
 }
