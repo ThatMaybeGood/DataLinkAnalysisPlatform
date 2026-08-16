@@ -153,3 +153,13 @@ export interface DashboardStats {
   topSlowNodes: { name: string; duration: string }[];
   instanceTrend: { label: string; value: number }[];
 }
+
+/** 后端运行信息（来自 /api/health） */
+export interface HealthInfo {
+  status: 'UP' | 'DEGRADED' | 'DOWN';
+  app: string;
+  version: string;
+  mode: 'h2' | 'mysql';          // h2=离线本地，mysql=部署
+  db: 'UP' | 'DOWN';
+  time: string;
+}

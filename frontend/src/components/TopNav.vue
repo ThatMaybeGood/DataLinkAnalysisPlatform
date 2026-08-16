@@ -1,12 +1,43 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { mockAlerts } from '@/api/mockData';
+import { fetchHealth } from '@/api';
+import type { HealthInfo } from '@/types';
 
 const route = useRoute();
 const router = useRouter();
 const pageTitle = computed(() => (route.meta.title as string) || '');
 const openCount = computed(() => mockAlerts.filter((a) => a.status === 'OPEN').length);
+
+/* —— 后端运行模式（/api/health）—— */
+const health = ref<HealthInfo | null>(null);
+const healthFailed = ref(false);
+onMounted(async () => {
+  try {
+    health.value = await fetchHealth();
+  } catch {
+    healthFailed.value = true;
+  }
+});
+
+const modeLabel = computed(() => (health.value?.mode === 'mysql' ? 'MySQL 部署' : '离线 H2'));
+const dbOk = computed(() => health.value?.db === 'UP');
+const modeText = computed(() => {
+  if (healthFailed.value) return '后端未连接';
+  if (!health.value) return '连接中…';
+  return `${modeLabel.value} · ${dbOk.value ? '数据库正常' : '数据库异常'}`;
+});
+const modeDotClass = computed(() => {
+  if (healthFailed.value) return 'dot--down';
+  if (!health.value) return 'dot--pending';
+  return dbOk.value ? 'dot--up' : 'dot--down';
+});
+const modeTitle = computed(() =>
+  health.value
+    ? `${health.value.app} v${health.value.version} · ${modeLabel.value} · 数据库${health.value.db} · ${health.value.time}`
+    : '后端未连接'
+);
 
 function onSearch(keyword: string) {
   if (!keyword.trim()) return;
@@ -30,6 +61,11 @@ function onSearch(keyword: string) {
           placeholder="搜索流程 / 站点 / 业务单号…"
           @keyup.enter="(e) => onSearch((e.target as HTMLInputElement).value)"
         />
+      </div>
+
+      <div class="mode-pill" :title="modeTitle">
+        <span class="mode-dot" :class="modeDotClass"></span>
+        <span class="mode-text">{{ modeText }}</span>
       </div>
 
       <button class="icon-btn" title="告警中心" @click="router.push('/alerts')">
@@ -59,6 +95,20 @@ function onSearch(keyword: string) {
 .crumb-current { font-weight: 600; }
 
 .top-right { display: flex; align-items: center; gap: 16px; }
+
+/* 运行模式徽标（来自 /api/health） */
+.mode-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 26px; padding: 0 10px; border-radius: 999px;
+  background: var(--surface-2); border: 1px solid var(--border);
+  font-size: 12px; color: var(--fg-muted); cursor: default;
+  white-space: nowrap;
+}
+.mode-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.dot--up { background: var(--success); }
+.dot--down { background: var(--danger); }
+.dot--pending { background: var(--fg-faint); }
+.mode-text { white-space: nowrap; }
 
 .icon-btn {
   position: relative; width: 34px; height: 34px; border-radius: var(--radius-sm);

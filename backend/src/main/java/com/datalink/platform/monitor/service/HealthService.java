@@ -1,5 +1,6 @@
 package com.datalink.platform.monitor.service;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -15,9 +16,13 @@ import java.util.Map;
 public class HealthService {
 
     private final JdbcTemplate jdbcTemplate;
+    /** 当前数据库模式：h2（离线本地）/ mysql（部署） */
+    private final String dbType;
 
-    public HealthService(JdbcTemplate jdbcTemplate) {
+    public HealthService(JdbcTemplate jdbcTemplate,
+                         @Value("${datalink.db-type:h2}") String dbType) {
         this.jdbcTemplate = jdbcTemplate;
+        this.dbType = dbType;
     }
 
     public Map<String, Object> status() {
@@ -25,6 +30,7 @@ public class HealthService {
         map.put("status", "UP");
         map.put("app", "datalink-backend");
         map.put("version", "0.1.0");
+        map.put("mode", dbType);
         map.put("time", LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
 
         try {

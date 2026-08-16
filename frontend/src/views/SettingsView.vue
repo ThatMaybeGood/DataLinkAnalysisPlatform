@@ -1,8 +1,21 @@
 <script setup lang="ts">
-/** 系统管理页：用户与角色、系统配置、数据权限说明 */
-import { ref } from 'vue';
+/** 系统管理页：运行信息、用户与角色、系统配置、数据权限说明 */
+import { onMounted, ref } from 'vue';
+import { fetchHealth } from '@/api';
+import type { HealthInfo } from '@/types';
 import Tag from '@/components/Tag.vue';
 import Icon from '@/components/Icon.vue';
+
+/* —— 运行信息（真实数据，来自后端 /api/health）—— */
+const health = ref<HealthInfo | null>(null);
+const healthFailed = ref(false);
+onMounted(async () => {
+  try {
+    health.value = await fetchHealth();
+  } catch {
+    healthFailed.value = true;
+  }
+});
 
 interface RoleItem {
   name: string;
@@ -63,6 +76,44 @@ function saveConfig() {
       <div>
         <div class="page-title">系统管理</div>
         <div class="page-subtitle">平台基础设置：账号权限、全局参数与数据权限基线</div>
+      </div>
+    </div>
+
+    <!-- 运行信息（真实数据，来自后端 /api/health） -->
+    <div class="card mb-lg">
+      <div class="card-header">
+        <div class="card-title">运行信息</div>
+        <span class="card-sub faint">来自后端健康探活 /api/health</span>
+      </div>
+      <div class="card-body">
+        <div v-if="healthFailed" class="muted">
+          后端未连接（当前为前端独立预览）。请先启动后端：
+          <code class="code-inline">cd backend && mvn spring-boot:run</code>
+        </div>
+        <div v-else-if="health" class="mode-grid">
+          <div class="mode-cell">
+            <div class="mode-label">运行模式</div>
+            <div class="mode-value">
+              <span class="mode-dot" :class="health.mode === 'mysql' ? 'dot--up' : 'dot--accent'"></span>
+              {{ health.mode === 'mysql' ? 'MySQL 部署' : '离线本地 H2' }}
+            </div>
+          </div>
+          <div class="mode-cell">
+            <div class="mode-label">数据库状态</div>
+            <div class="mode-value" :class="health.db === 'UP' ? 'text-ok' : 'text-bad'">
+              {{ health.db === 'UP' ? '正常' : '异常' }}
+            </div>
+          </div>
+          <div class="mode-cell">
+            <div class="mode-label">后端版本</div>
+            <div class="mode-value mono">{{ health.app }} v{{ health.version }}</div>
+          </div>
+          <div class="mode-cell">
+            <div class="mode-label">探活时间</div>
+            <div class="mode-value mono">{{ health.time }}</div>
+          </div>
+        </div>
+        <div v-else class="muted">连接中…</div>
       </div>
     </div>
 
@@ -186,6 +237,21 @@ function saveConfig() {
 <style scoped>
 .mb-lg { margin-bottom: var(--space-lg); }
 .card-sub { font-size: 12px; }
+
+/* 运行信息卡 */
+.mode-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px 24px; }
+.mode-label { font-size: 12px; color: var(--fg-faint); margin-bottom: 6px; }
+.mode-value { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; }
+.mode-dot { width: 8px; height: 8px; border-radius: 50%; }
+.dot--up { background: var(--success); }
+.dot--accent { background: var(--accent); }
+.text-ok { color: var(--success); }
+.text-bad { color: var(--danger); }
+.code-inline {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 12px; padding: 1px 5px; border-radius: 4px;
+  background: var(--surface-2); border: 1px solid var(--border);
+}
 
 .role-list { display: flex; flex-direction: column; }
 .role-row {

@@ -11,7 +11,7 @@ import {
 } from './mockData';
 import type {
   AlertItem, Connector, DashboardStats, GraphEdge, GraphNode,
-  Instance, ProcessDef, Route, VersionRecord,
+  HealthInfo, Instance, ProcessDef, Route, VersionRecord,
 } from '@/types';
 
 /** 模拟网络延迟，便于观察加载状态（接入后端后删除） */
@@ -26,6 +26,14 @@ export async function fetchAlerts(): Promise<AlertItem[]> { await delay(); retur
 export async function fetchVersions(): Promise<VersionRecord[]> { await delay(); return mockVersions; }
 export async function fetchConnectors(): Promise<Connector[]> { await delay(); return mockConnectors; }
 export async function fetchDashboardStats(): Promise<DashboardStats> { await delay(); return mockDashboardStats; }
+
+/** 健康探活（真实接口，非 mock）：返回运行模式 / 数据库状态 / 版本 */
+export async function fetchHealth(): Promise<HealthInfo> {
+  const res = await fetch('/api/health');
+  if (!res.ok) throw new Error(`health http ${res.status}`);
+  const json = await res.json();
+  return json.data as HealthInfo;
+}
 
 // 后端接入后的替换示例：
 // export async function fetchNodes(): Promise<GraphNode[]> {
