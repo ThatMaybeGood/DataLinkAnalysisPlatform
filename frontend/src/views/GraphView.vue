@@ -2,7 +2,8 @@
 /** 关系网核心页：路网视图 + 路线高亮 + 站点详情 + 路线条（地铁式） */
 import { computed, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
-import { fetchEdges, fetchNodes, fetchProcesses, fetchRoutes } from '@/api';
+import { fetchEdges, fetchGraphTrace, fetchNodes, fetchProcesses, fetchRoutes } from '@/api';
+import type { GraphTrace } from '@/api';
 import type { GraphEdge, GraphNode, ProcessDef, Route } from '@/types';
 import GraphCanvas from '@/components/GraphCanvas.vue';
 import NodeDetailPanel from '@/components/NodeDetailPanel.vue';
@@ -60,9 +61,45 @@ function stationClass(id: string) {
   return '';
 }
 
+/* —— 排查模式（顺藤摸瓜）：选中节点 → 请求上游 / 下游 —— */
+const trace = ref<GraphTrace | null>(null);
+const traceLoading = ref(false);
+
+const traceNode = computed(() => nodes.value.find((n) => n.id === trace.value?.nodeId) ?? null);
+const upstreamIds = computed(() => new Set((trace.value?.upstream ?? []).map((n) => n.id)));
+const downstreamIds = computed(() => new Set((trace.value?.downstream ?? []).map((n) => n.id)));
+
+/** 点击/选中节点：打开详情并请求上下游追踪 */
+async function onNodeClick(node: GraphNode) {
+  selectedNode.value = node;
+  focusNodeId.value = node.id;
+  traceLoading.value = true;
+  try {
+    trace.value = await fetchGraphTrace(node.id);
+  } catch {
+    trace.value = null; // 追踪失败不影响原有布局
+  } finally {
+    traceLoading.value = false;
+  }
+}
+
+function closeTrace() {
+  trace.value = null;
+  traceLoading.value = false;
+}
+
+/** 路线条站点：命中上游 / 下游时附加高亮类 */
+function traceStationClass(id: string) {
+  if (upstreamIds.value.has(id)) return 'station--trace-up';
+  if (downstreamIds.value.has(id)) return 'station--trace-down';
+  return '';
+}
+
 function focusStation(id: string) {
+  const n = nodes.value.find((x) => x.id === id) ?? null;
   focusNodeId.value = id;
-  selectedNode.value = nodes.value.find((n) => n.id === id) ?? null;
+  selectedNode.value = n;
+  if (n) void onNodeClick(n);
 }
 
 function onSearch() {
@@ -146,7 +183,7 @@ onMounted(async () => {
         :nodes="nodes" :edges="edges" :routes="routes"
         :active-route-id="canvasActiveRouteId"
         :focus-node-id="focusNodeId"
-        @node-click="selectedNode = $event"
+        @node-click="onNodeClick"
       />
 
       <!-- 图例 -->
@@ -160,11 +197,40 @@ onMounted(async () => {
         <div class="legend-item"><span class="legend-ring legend-ring--fail" />失败</div>
       </div>
 
+      <!-- 排查浮层（顺藤摸瓜）：上游 / 下游 -->
+      <div v-if="trace" class="trace-panel">
+        <div class="trace-header">
+          <span class="trace-name">排查 · {{ traceNode?.name ?? trace.nodeId }}</span>
+          <button class="trace-close" @click="closeTrace" aria-label="关闭排查">
+            <Icon name="chevron" :size="12" />
+          </button>
+        </div>
+        <div v-if="traceLoading" class="trace-meta">上下游追踪中…</div>
+        <template v-else>
+          <div class="trace-meta">上游 {{ trace.upstream.length }} 个 · 下游 {{ trace.downstream.length }} 个</div>
+          <div v-if="trace.upstream.length" class="trace-group">
+            <div class="trace-group-title trace-group-title--up">上游</div>
+            <button v-for="n in trace.upstream" :key="n.id" class="trace-node trace-node--up" @click="focusStation(n.id)">
+              <span class="trace-node-name">{{ n.name }}</span>
+              <span class="faint mono">{{ n.nodeType }}</span>
+            </button>
+          </div>
+          <div v-if="trace.downstream.length" class="trace-group">
+            <div class="trace-group-title trace-group-title--down">下游</div>
+            <button v-for="n in trace.downstream" :key="n.id" class="trace-node trace-node--down" @click="focusStation(n.id)">
+              <span class="trace-node-name">{{ n.name }}</span>
+              <span class="faint mono">{{ n.nodeType }}</span>
+            </button>
+          </div>
+          <div v-if="!trace.upstream.length && !trace.downstream.length" class="trace-meta">该节点无上下游关系</div>
+        </template>
+      </div>
+
       <!-- 详情抽屉 -->
       <NodeDetailPanel
         :node="selectedNode" :nodes="nodes" :edges="edges"
         @close="selectedNode = null"
-        @focus="(id) => { focusNodeId = id; selectedNode = nodes.find(n => n.id === id) ?? null }"
+        @focus="focusStation"
       />
     </div>
 
@@ -176,7 +242,7 @@ onMounted(async () => {
       </div>
       <div class="strip">
         <template v-for="(nid, idx) in activeRoute.nodeIds" :key="nid">
-          <button class="station" :class="stationClass(nid)" @click="focusStation(nid)">
+          <button class="station" :class="[stationClass(nid), traceStationClass(nid)]" @click="focusStation(nid)">
             <span class="station-name">{{ nodeName(nid) }}</span>
           </button>
           <span v-if="idx < activeRoute.nodeIds.length - 1" class="station-link" />
@@ -278,4 +344,46 @@ onMounted(async () => {
 .station-link {
   flex: 1; min-width: 40px; height: 3px; background: var(--node-line); border-radius: 2px;
 }
+
+/* 排查模式：路线条站点高亮（上游绿环 / 下游红环） */
+.station--trace-up::before { box-shadow: 0 0 0 2px #10b981, 0 0 8px rgba(16, 185, 129, .55); }
+.station--trace-down::before { box-shadow: 0 0 0 2px #ef4444, 0 0 8px rgba(239, 68, 68, .55); }
+.station--trace-up .station-name { color: #6ee7b7; }
+.station--trace-down .station-name { color: #fca5a5; }
+
+/* 排查浮层（画布左上角，与图例同风格） */
+.trace-panel {
+  position: absolute; left: 16px; top: 16px; z-index: 4;
+  width: 224px; max-height: calc(100% - 32px); overflow-y: auto;
+  background: rgba(13, 20, 36, .92); border: 1px solid var(--canvas-border);
+  border-radius: var(--radius); padding: 12px; font-size: 12px;
+  color: var(--canvas-fg); box-shadow: var(--shadow-canvas);
+}
+.trace-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.trace-name {
+  font-weight: 600; font-size: 12.5px; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap;
+}
+.trace-close {
+  width: 20px; height: 20px; border-radius: 5px; border: none; flex-shrink: 0;
+  background: rgba(255, 255, 255, .06); color: var(--canvas-fg); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transform: rotate(180deg);
+}
+.trace-close:hover { background: rgba(255, 255, 255, .16); color: #fff; }
+.trace-meta { margin-top: 8px; color: var(--canvas-fg-dim); }
+.trace-group { margin-top: 10px; }
+.trace-group-title { font-size: 11px; letter-spacing: .06em; margin-bottom: 4px; }
+.trace-group-title--up { color: #6ee7b7; }
+.trace-group-title--down { color: #fca5a5; }
+.trace-node {
+  display: flex; align-items: center; justify-content: space-between; gap: 6px;
+  width: 100%; padding: 5px 8px; margin-bottom: 2px; border-radius: 6px; border: none;
+  background: transparent; color: var(--canvas-fg); font-size: 12px;
+  cursor: pointer; text-align: left; transition: background .12s ease;
+}
+.trace-node:hover { background: rgba(255, 255, 255, .08); }
+.trace-node--up:hover { color: #6ee7b7; }
+.trace-node--down:hover { color: #fca5a5; }
+.trace-node-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>

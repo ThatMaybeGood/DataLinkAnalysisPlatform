@@ -1,15 +1,14 @@
 /* ============================================================
    DataLink 平台 · 数据访问层
-   关系网 / 流程、数据池（连接器管理）与健康探活已接入真实 HTTP 接口；
-   实例 / 告警 / 版本 / 看板统计仍为 Mock 数据（演示用）。
+   关系网 / 流程、数据池（连接器管理）、监控域（实例 / 告警 / 看板 /
+   检测点 / 上下游追踪）与健康探活均已接入真实 HTTP 接口；
+   版本记录仍为 Mock 数据（演示用）。
    接口路径与 v1.1 项目文档书第 5 章模块一致。
    ============================================================ */
 
-import {
-  mockAlerts, mockDashboardStats, mockInstances, mockVersions,
-} from './mockData';
+import { mockVersions } from './mockData';
 import type {
-  AlertItem, ConnectorSavePayload, ConnectorTestResult, DashboardStats,
+  AlertItem, Checkpoint, ConnectorSavePayload, ConnectorTestResult, DashboardStats,
   DataSourceConnector, GraphEdge, GraphNode, HealthInfo, Instance,
   ProcessDef, Route, TableInfo, TablePreview, VersionRecord,
 } from '@/types';
@@ -30,10 +29,73 @@ export async function fetchProcesses(): Promise<ProcessDef[]> {
 export async function fetchRoutes(): Promise<Route[]> {
   return unwrap<Route[]>(await fetch('/api/routes'));
 }
-export async function fetchInstances(): Promise<Instance[]> { await delay(); return mockInstances; }
-export async function fetchAlerts(): Promise<AlertItem[]> { await delay(); return mockAlerts; }
 export async function fetchVersions(): Promise<VersionRecord[]> { await delay(); return mockVersions; }
-export async function fetchDashboardStats(): Promise<DashboardStats> { await delay(); return mockDashboardStats; }
+
+// ============================================================
+// 监控域：实例 / 告警 / 看板 / 检测点 / 上下游追踪（真实接口）
+// 统一约定：后端返回 Result<T>，code === 200 表示成功，data 为业务数据
+// ============================================================
+
+/** 实例经过的节点（对应后端 InstanceNodeVO） */
+export interface InstanceNodeVO {
+  nodeId: string;
+  nodeName: string;
+  seq: number;
+  status: string;
+}
+
+/** 上下游追踪结果（对应后端 TraceVO，顺藤摸瓜） */
+export interface GraphTrace {
+  nodeId: string;
+  upstream: GraphNode[];
+  downstream: GraphNode[];
+}
+
+/** 实例分页查询（page 从 1 起；status 为空 = 全部状态） */
+export async function fetchInstances(
+  page = 1, size = 10, status = '',
+): Promise<{ records: Instance[]; total: number }> {
+  const qs = new URLSearchParams({ page: String(page), size: String(size) });
+  if (status) qs.set('status', status);
+  const res = await fetch(`/api/instances?${qs.toString()}`);
+  return unwrap<{ records: Instance[]; total: number }>(res);
+}
+
+/** 实例经过的节点序列（顺藤摸瓜定位实例当前所在站点） */
+export async function fetchInstanceNodes(id: string): Promise<InstanceNodeVO[]> {
+  const res = await fetch(`/api/instances/${encodeURIComponent(id)}/nodes`);
+  return unwrap<InstanceNodeVO[]>(res);
+}
+
+/** 告警列表（含已解决，前端负责过滤） */
+export async function fetchAlerts(): Promise<AlertItem[]> {
+  const res = await fetch('/api/alerts');
+  return unwrap<AlertItem[]>(res);
+}
+
+/** 关闭告警 */
+export async function resolveAlert(id: string): Promise<void> {
+  const res = await fetch(`/api/alerts/${encodeURIComponent(id)}/resolve`, { method: 'POST' });
+  await unwrap<void>(res);
+}
+
+/** 看板统计 */
+export async function fetchDashboardStats(): Promise<DashboardStats> {
+  const res = await fetch('/api/dashboard/stats');
+  return unwrap<DashboardStats>(res);
+}
+
+/** 站点检测点清单 */
+export async function fetchCheckpoints(nodeId: string): Promise<Checkpoint[]> {
+  const res = await fetch(`/api/checkpoints?nodeId=${encodeURIComponent(nodeId)}`);
+  return unwrap<Checkpoint[]>(res);
+}
+
+/** 上下游追踪（顺藤摸瓜：某节点与其上游 / 下游） */
+export async function fetchGraphTrace(nodeId: string): Promise<GraphTrace> {
+  const res = await fetch(`/api/graph/${encodeURIComponent(nodeId)}/trace`);
+  return unwrap<GraphTrace>(res);
+}
 
 /** 健康探活（真实接口，非 mock）：返回运行模式 / 数据库状态 / 版本 */
 export async function fetchHealth(): Promise<HealthInfo> {

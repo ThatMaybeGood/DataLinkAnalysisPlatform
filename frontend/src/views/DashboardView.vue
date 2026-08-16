@@ -1,21 +1,47 @@
 <script setup lang="ts">
 /** 工作台（看板首页）：全局运行态势总览，顺藤摸瓜定位问题 */
-import { mockAlerts, mockDashboardStats, mockInstances } from '@/api/mockData';
+import { computed, onMounted, ref } from 'vue';
+import { fetchAlerts, fetchDashboardStats, fetchInstances } from '@/api';
+import type { AlertItem, DashboardStats, Instance } from '@/types';
 import Icon from '@/components/Icon.vue';
 import StatCard from '@/components/StatCard.vue';
 import Tag from '@/components/Tag.vue';
 
-const stats = mockDashboardStats;
+const stats = ref<DashboardStats | null>(null);
+const openAlerts = ref<AlertItem[]>([]);
+const recentInstances = ref<Instance[]>([]);
+const loading = ref(true);
+const loadError = ref('');
+
+async function loadDashboard() {
+  loading.value = true;
+  loadError.value = '';
+  try {
+    const [s, alerts, inst] = await Promise.all([
+      fetchDashboardStats(),
+      fetchAlerts(),
+      fetchInstances(1, 4), // 最近实例：取前 4 条
+    ]);
+    stats.value = s;
+    openAlerts.value = alerts.filter((a) => a.status === 'OPEN').slice(0, 3);
+    recentInstances.value = inst.records;
+  } catch (err) {
+    loadError.value = err instanceof Error ? err.message : '看板数据加载失败';
+  } finally {
+    loading.value = false;
+  }
+}
+
+onMounted(loadDashboard);
 
 /* —— 流程运行概览：纯 CSS 横向柱状图 —— */
-const trend = stats.instanceTrend;
-const trendMax = Math.max(0, ...trend.map((t) => t.value));
+const trend = computed(() => stats.value?.instanceTrend ?? []);
+const trendMax = computed(() => Math.max(0, ...trend.value.map((t) => t.value)));
 function barWidth(v: number) {
-  return `${trendMax ? Math.round((v / trendMax) * 100) : 0}%`;
+  return `${trendMax.value ? Math.round((v / trendMax.value) * 100) : 0}%`;
 }
 
 /* —— 告警速览：未处理（OPEN）前 3 条 —— */
-const openAlerts = mockAlerts.filter((a) => a.status === 'OPEN').slice(0, 3);
 function severityClass(sev: string) {
   if (sev === 'P0' || sev === 'P1') return 'tag--danger';
   if (sev === 'P2') return 'tag--warning';
@@ -25,8 +51,7 @@ function shortTime(t: string) {
   return t.slice(5, 16); // MM-DD HH:mm
 }
 
-/* —— 最近实例：前 4 条 —— */
-const recentInstances = mockInstances.slice(0, 4);
+/* —— 最近实例 —— */
 function relativeTime(t: string): string {
   const date = new Date(t.replace(' ', 'T'));
   const diff = Date.now() - date.getTime();
@@ -41,7 +66,7 @@ function relativeTime(t: string): string {
 }
 
 /* —— TOP 慢环节 —— */
-const topSlowNodes = stats.topSlowNodes;
+const topSlowNodes = computed(() => stats.value?.topSlowNodes ?? []);
 </script>
 
 <template>
@@ -59,13 +84,24 @@ const topSlowNodes = stats.topSlowNodes;
       </div>
     </div>
 
-    <!-- 顶部统计卡 -->
-    <div class="stat-grid">
-      <StatCard label="总流程" :value="stats.processCount" icon="process" sub="已建模流程" />
-      <StatCard label="运行中实例" :value="stats.runningInstances" icon="activity" color="accent" sub="跨 2 条流程" />
-      <StatCard label="今日完成" :value="stats.doneToday" icon="check" color="success" sub="成功率 92%" />
-      <StatCard label="未处理告警" :value="stats.openAlerts" icon="alert" color="danger" sub="含 1 条 P1" />
+    <!-- 加载态 -->
+    <div v-if="loading" class="page-status">看板数据加载中…</div>
+
+    <!-- 错误态 -->
+    <div v-else-if="loadError" class="page-status page-status--error">
+      <span>加载失败：{{ loadError }}</span>
+      <button class="btn btn-outline btn-sm" @click="loadDashboard">重试</button>
     </div>
+
+    <!-- 数据态 -->
+    <template v-else-if="stats">
+      <!-- 顶部统计卡 -->
+      <div class="stat-grid">
+        <StatCard label="总流程" :value="stats.processCount" icon="process" sub="已建模流程" />
+        <StatCard label="运行中实例" :value="stats.runningInstances" icon="activity" color="accent" :sub="`卡住 ${stats.stuckCount} 个`" />
+        <StatCard label="今日完成" :value="stats.doneToday" icon="check" color="success" :sub="`平均耗时 ${stats.avgDuration}`" />
+        <StatCard label="未处理告警" :value="stats.openAlerts" icon="alert" color="danger" sub="需及时处置" />
+      </div>
 
     <!-- 双列面板 -->
     <div class="grid dash-grid mt-lg">
@@ -143,6 +179,7 @@ const topSlowNodes = stats.topSlowNodes;
         </div>
       </div>
     </div>
+    </template>
   </div>
 </template>
 
@@ -155,6 +192,15 @@ const topSlowNodes = stats.topSlowNodes;
   display: flex; flex-direction: column; gap: var(--space-lg);
   min-width: 0;
 }
+
+/* 加载 / 错误态 */
+.page-status {
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+  padding: 48px 24px; background: var(--surface);
+  border: 1px solid var(--border); border-radius: var(--radius-lg);
+  color: var(--fg-muted); font-size: 13.5px;
+}
+.page-status--error { color: var(--danger); }
 
 /* 卡片头部链接 */
 .card-link {
