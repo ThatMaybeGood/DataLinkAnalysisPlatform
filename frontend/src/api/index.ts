@@ -7,7 +7,7 @@
    ============================================================ */
 
 import type {
-  AlertItem, Checkpoint, ConnectorSavePayload, ConnectorTestResult, DashboardStats,
+  AlertItem, CandidateNode, Checkpoint, ConnectorSavePayload, ConnectorTestResult, DashboardStats,
   DataSourceConnector, GraphEdge, GraphNode, HealthInfo, Instance,
   LoginResult, ProcessDef, Route, TableInfo, TablePreview, VersionRecord,
 } from '@/types';
@@ -305,4 +305,51 @@ export async function fetchConnectorTables(id: string): Promise<TableInfo[]> {
 export async function fetchTablePreview(id: string, table: string): Promise<TablePreview> {
   const res = await apiFetch(`/api/connectors/${id}/tables/${encodeURIComponent(table)}/preview`);
   return unwrap<TablePreview>(res);
+}
+
+// ============================================================
+// CMDB 连接器：同步候选 / 候选清单 / 导入（真实接口）
+// ============================================================
+
+/** CMDB 连接器：同步候选节点（返回候选数） */
+export async function syncConnector(id: string): Promise<number> {
+  const res = await apiFetch(`/api/connectors/${encodeURIComponent(id)}/sync`, { method: 'POST' });
+  return unwrap<number>(res);
+}
+
+/** CMDB 连接器：候选节点清单 */
+export async function fetchConnectorCandidates(id: string): Promise<CandidateNode[]> {
+  const res = await apiFetch(`/api/connectors/${encodeURIComponent(id)}/candidates`);
+  return unwrap<CandidateNode[]>(res);
+}
+
+/** CMDB 连接器：导入全部候选节点（返回导入数） */
+export async function importConnectorCandidates(id: string): Promise<number> {
+  const res = await apiFetch(`/api/connectors/${encodeURIComponent(id)}/import`, { method: 'POST' });
+  return unwrap<number>(res);
+}
+
+// ============================================================
+// 开放 API（外部系统集成，仅管理员可查看）
+// ============================================================
+
+/** 开放 API 接口清单项 */
+export interface OpenApiEndpoint {
+  method: string;
+  path: string;
+  desc: string;
+}
+
+/** 开放 API 信息 */
+export interface OpenApiInfo {
+  token: string;
+  basePath: string;
+  endpoints: OpenApiEndpoint[];
+}
+
+/** 开放 API 信息（403 时提示仅管理员可查看） */
+export async function fetchOpenApiInfo(): Promise<OpenApiInfo> {
+  const res = await apiFetch('/api/system/openapi');
+  if (res.status === 403) throw new Error('仅管理员可查看');
+  return unwrap<OpenApiInfo>(res);
 }

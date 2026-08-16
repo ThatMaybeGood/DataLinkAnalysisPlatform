@@ -53,6 +53,8 @@ public class SecurityConfig {
                         // 告警/工单写操作：ADMIN / OPERATOR / ONCALL
                         .requestMatchers(HttpMethod.POST, "/api/alerts/**", "/api/tickets").hasAnyRole("ADMIN", "OPERATOR", "ONCALL")
                         .requestMatchers(HttpMethod.PUT, "/api/tickets/**", "/api/alerts/**").hasAnyRole("ADMIN", "OPERATOR", "ONCALL")
+                        // 系统信息（开放 API Token 等）：仅 ADMIN
+                        .requestMatchers("/api/system/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
                 .exceptionHandling(e -> e
                         // 未登录/登录过期：HTTP 401 + 统一 JSON

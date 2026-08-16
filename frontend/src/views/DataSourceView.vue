@@ -3,11 +3,13 @@
  *  列表分页 / 新建 / 编辑 / 测试 / 设为当前 / 删除 / 浏览库表与数据预览 */
 import { computed, onMounted, reactive, ref } from 'vue';
 import {
-  activateConnector, createConnector, deleteConnector, fetchConnectorTables,
-  fetchConnectors, fetchTablePreview, testConnector, updateConnector,
+  activateConnector, createConnector, deleteConnector, fetchConnectorCandidates,
+  fetchConnectorTables, fetchConnectors, fetchTablePreview, importConnectorCandidates,
+  syncConnector, testConnector, updateConnector,
 } from '@/api';
 import type {
-  ConnectorSavePayload, ConnectorTestResult, DataSourceConnector, TableInfo, TablePreview,
+  CandidateNode, ConnectorSavePayload, ConnectorTestResult, DataSourceConnector,
+  TableInfo, TablePreview,
 } from '@/types';
 import Icon from '@/components/Icon.vue';
 import Tag from '@/components/Tag.vue';
@@ -30,8 +32,22 @@ const dbTypeMeta: Record<string, { label: string; tone: string }> = {
   h2: { label: 'H2', tone: 'tag--neutral' },
 };
 
-/** H2 无 host/port，地址列单独展示 */
+/** 类型列徽标：CMDB 专属样式；DB 按 dbType 映射 */
+function typeMeta(c: DataSourceConnector): { label: string; tone: string } {
+  if (c.connectorType === 'CMDB') return { label: 'CMDB', tone: 'tag--info' };
+  return dbTypeMeta[c.dbType ?? ''] ?? { label: c.dbType ?? '—', tone: 'tag--neutral' };
+}
+
+/** H2 无 host/port，地址列单独展示；CMDB 显示 API 地址 */
 function hostPort(c: DataSourceConnector): string {
+  if (c.connectorType === 'CMDB') {
+    try {
+      const cfg = JSON.parse(c.config ?? '{}') as Record<string, string>;
+      return cfg.apiUrl || 'CMDB';
+    } catch {
+      return 'CMDB';
+    }
+  }
   if (c.dbType === 'h2') return 'H2 内存库';
   return [c.host, c.port].filter((x) => x !== undefined && x !== null && x !== '').join(':') || '—';
 }
@@ -194,7 +210,10 @@ const saving = ref(false);
 const formError = ref('');
 const form = reactive({
   name: '',
+  connectorType: 'DB' as string,      // DB / CMDB
   dbType: 'mysql' as string,
+  apiUrl: '',                         // 仅 CMDB
+  apiKey: '',                         // 仅 CMDB
   host: '',
   port: '',
   databaseName: '',
@@ -206,7 +225,10 @@ const form = reactive({
 function openCreate() {
   editing.value = null;
   form.name = '';
+  form.connectorType = 'DB';
   form.dbType = 'mysql';
+  form.apiUrl = '';
+  form.apiKey = '';
   form.host = '';
   form.port = '';
   form.databaseName = '';
@@ -220,13 +242,25 @@ function openCreate() {
 function openEdit(c: DataSourceConnector) {
   editing.value = c;
   form.name = c.name;
-  form.dbType = c.dbType;
+  form.connectorType = c.connectorType ?? 'DB';
+  form.dbType = c.dbType ?? 'mysql';
   form.host = c.host ?? '';
   form.port = c.port ? String(c.port) : '';
-  form.databaseName = c.databaseName;
-  form.username = c.username;
+  form.databaseName = c.databaseName ?? '';
+  form.username = c.username ?? '';
   form.password = '';
+  form.apiUrl = '';
+  form.apiKey = '';
   form.config = '';
+  if (form.connectorType === 'CMDB') {
+    try {
+      const cfg = JSON.parse(c.config ?? '{}') as Record<string, string>;
+      form.apiUrl = cfg.apiUrl ?? '';
+      form.apiKey = cfg.apiKey ?? '';
+    } catch {
+      /* 历史脏数据则留空重新填写 */
+    }
+  }
   formError.value = '';
   showModal.value = true;
 }
@@ -239,26 +273,42 @@ function closeModal() {
 async function submitForm() {
   formError.value = '';
   if (!form.name.trim()) { formError.value = '名称不能为空'; return; }
-  if (!form.databaseName.trim()) { formError.value = '库名不能为空'; return; }
-  if (!form.username.trim()) { formError.value = '用户名不能为空'; return; }
-  if (!editing.value && !form.password) { formError.value = '新建连接时密码必填'; return; }
-  if (form.dbType !== 'h2') {
-    if (!form.host.trim()) { formError.value = '主机不能为空'; return; }
-    if (!form.port) { formError.value = '端口不能为空'; return; }
-  }
-  if (form.port && Number.isNaN(Number(form.port))) { formError.value = '端口需为数字'; return; }
 
-  const payload: ConnectorSavePayload = {
-    name: form.name.trim(),
-    dbType: form.dbType as ConnectorSavePayload['dbType'],
-    host: form.host.trim() || undefined,
-    port: form.port ? Number(form.port) : undefined,
-    databaseName: form.databaseName.trim(),
-    username: form.username.trim(),
-    password: form.password || undefined,
-    config: form.config.trim() || undefined,
-    enabled: 1,
-  };
+  let payload: ConnectorSavePayload;
+  if (form.connectorType === 'CMDB') {
+    if (!form.apiUrl.trim()) { formError.value = 'API 地址不能为空'; return; }
+    if (!editing.value && !form.apiKey) { formError.value = '新建连接时 API Key 必填'; return; }
+    const cfg: Record<string, string> = { apiUrl: form.apiUrl.trim() };
+    if (form.apiKey.trim()) cfg.apiKey = form.apiKey.trim();   // 编辑留空 = 沿用原 Key
+    payload = {
+      name: form.name.trim(),
+      connectorType: 'CMDB',
+      config: JSON.stringify(cfg),
+      enabled: 1,
+    };
+  } else {
+    if (!form.databaseName.trim()) { formError.value = '库名不能为空'; return; }
+    if (!form.username.trim()) { formError.value = '用户名不能为空'; return; }
+    if (!editing.value && !form.password) { formError.value = '新建连接时密码必填'; return; }
+    if (form.dbType !== 'h2') {
+      if (!form.host.trim()) { formError.value = '主机不能为空'; return; }
+      if (!form.port) { formError.value = '端口不能为空'; return; }
+    }
+    if (form.port && Number.isNaN(Number(form.port))) { formError.value = '端口需为数字'; return; }
+
+    payload = {
+      name: form.name.trim(),
+      connectorType: 'DB',
+      dbType: form.dbType as ConnectorSavePayload['dbType'],
+      host: form.host.trim() || undefined,
+      port: form.port ? Number(form.port) : undefined,
+      databaseName: form.databaseName.trim(),
+      username: form.username.trim(),
+      password: form.password || undefined,
+      config: form.config.trim() || undefined,
+      enabled: 1,
+    };
+  }
 
   saving.value = true;
   try {
@@ -270,6 +320,83 @@ async function submitForm() {
     formError.value = (e as Error).message || '保存失败';
   } finally {
     saving.value = false;
+  }
+}
+
+/* —— CMDB：同步候选 / 候选清单 / 导入 —— */
+const syncingId = ref('');
+const importingId = ref('');
+const candidatesModal = ref(false);
+const candidatesId = ref('');
+const candidatesName = ref('');
+const candidateList = ref<CandidateNode[]>([]);
+const candidatesLoading = ref(false);
+const candidatesError = ref('');
+const importingAll = ref(false);
+
+async function syncCandidates(c: DataSourceConnector) {
+  if (syncingId.value === c.id) return;
+  syncingId.value = c.id;
+  try {
+    const n = await syncConnector(c.id);
+    window.alert(`同步完成，发现 ${n} 个候选节点`);
+    await loadList();
+  } catch (e) {
+    window.alert((e as Error).message || '同步失败');
+  } finally {
+    syncingId.value = '';
+  }
+}
+
+async function openCandidates(c: DataSourceConnector) {
+  candidatesId.value = c.id;
+  candidatesName.value = c.name;
+  candidatesModal.value = true;
+  candidatesLoading.value = true;
+  candidatesError.value = '';
+  candidateList.value = [];
+  try {
+    candidateList.value = await fetchConnectorCandidates(c.id);
+  } catch (e) {
+    candidatesError.value = (e as Error).message || '加载候选节点失败';
+  } finally {
+    candidatesLoading.value = false;
+  }
+}
+
+function closeCandidates() {
+  if (importingAll.value) return;
+  candidatesModal.value = false;
+}
+
+async function importCandidates(c: DataSourceConnector) {
+  if (importingId.value === c.id) return;
+  if (!window.confirm(`确认将「${c.name}」的全部候选节点导入关系网？`)) return;
+  importingId.value = c.id;
+  try {
+    const n = await importConnectorCandidates(c.id);
+    window.alert(`导入完成，共导入 ${n} 个节点`);
+    await loadList();
+  } catch (e) {
+    window.alert((e as Error).message || '导入失败');
+  } finally {
+    importingId.value = '';
+  }
+}
+
+async function importAllFromModal() {
+  if (!candidatesId.value || importingAll.value) return;
+  importingAll.value = true;
+  candidatesError.value = '';
+  try {
+    const n = await importConnectorCandidates(candidatesId.value);
+    window.alert(`导入完成，共导入 ${n} 个节点`);
+    candidatesModal.value = false;
+    await loadList();
+  } catch (e) {
+    candidatesError.value = (e as Error).message || '导入失败';
+  } finally {
+    importingAll.value = false;
   }
 }
 
@@ -342,12 +469,10 @@ onMounted(() => loadList(1));
               <tr>
                 <td class="cell-strong">{{ c.name }}</td>
                 <td>
-                  <span class="tag" :class="dbTypeMeta[c.dbType]?.tone ?? 'tag--neutral'">
-                    {{ dbTypeMeta[c.dbType]?.label ?? c.dbType }}
-                  </span>
+                  <span class="tag" :class="typeMeta(c).tone">{{ typeMeta(c).label }}</span>
                 </td>
                 <td><span class="cell-mono">{{ hostPort(c) }}</span></td>
-                <td><span class="cell-mono">{{ c.databaseName }}</span></td>
+                <td><span class="cell-mono">{{ c.connectorType === 'CMDB' ? '—' : c.databaseName }}</span></td>
                 <td>
                   <span v-if="c.isActive === 1" class="tag tag--accent tag--plain">当前</span>
                   <span v-else class="faint">—</span>
@@ -362,20 +487,35 @@ onMounted(() => loadList(1));
                 </td>
                 <td>
                   <div class="row ops">
-                    <button class="btn btn-ghost btn-sm" :disabled="testingId === c.id" @click="testConn(c)">
-                      <Icon v-if="testingId !== c.id" name="refresh" :size="13" />
-                      {{ testingId === c.id ? '测试中…' : '测试' }}
-                    </button>
-                    <button v-if="c.isActive !== 1" class="btn btn-ghost btn-sm" @click="setActive(c)">
-                      <Icon name="target" :size="13" />设为当前
-                    </button>
+                    <template v-if="c.connectorType === 'CMDB'">
+                      <button class="btn btn-ghost btn-sm" :disabled="syncingId === c.id" @click="syncCandidates(c)">
+                        <Icon v-if="syncingId !== c.id" name="refresh" :size="13" />
+                        {{ syncingId === c.id ? '同步中…' : '同步' }}
+                      </button>
+                      <button class="btn btn-ghost btn-sm" @click="openCandidates(c)">
+                        <Icon name="box" :size="13" />候选
+                      </button>
+                      <button class="btn btn-ghost btn-sm" :disabled="importingId === c.id" @click="importCandidates(c)">
+                        <Icon v-if="importingId !== c.id" name="export" :size="13" />
+                        {{ importingId === c.id ? '导入中…' : '导入' }}
+                      </button>
+                    </template>
+                    <template v-else>
+                      <button class="btn btn-ghost btn-sm" :disabled="testingId === c.id" @click="testConn(c)">
+                        <Icon v-if="testingId !== c.id" name="refresh" :size="13" />
+                        {{ testingId === c.id ? '测试中…' : '测试' }}
+                      </button>
+                      <button v-if="c.isActive !== 1" class="btn btn-ghost btn-sm" @click="setActive(c)">
+                        <Icon name="target" :size="13" />设为当前
+                      </button>
+                      <button class="btn btn-outline btn-sm" @click="toggleBrowse(c)">
+                        <Icon name="database" :size="13" />{{ browseId === c.id ? '收起' : '浏览' }}
+                      </button>
+                    </template>
                     <button class="btn btn-ghost btn-sm" @click="openEdit(c)">
                       <Icon name="settings" :size="13" />编辑
                     </button>
                     <button class="btn btn-danger btn-sm" @click="removeConnector(c)">删除</button>
-                    <button class="btn btn-outline btn-sm" @click="toggleBrowse(c)">
-                      <Icon name="database" :size="13" />{{ browseId === c.id ? '收起' : '浏览' }}
-                    </button>
                   </div>
                 </td>
               </tr>
@@ -471,40 +611,61 @@ onMounted(() => loadList(1));
             <div class="form-grid">
               <div class="field">
                 <label class="label">名称 <i class="req">*</i></label>
-                <input v-model="form.name" class="input" placeholder="如：生产订单库" />
+                <input v-model="form.name" class="input" placeholder="如：生产订单库 / 配置管理 CMDB" />
               </div>
               <div class="field">
-                <label class="label">类型</label>
-                <select v-model="form.dbType" class="select">
-                  <option value="mysql">MySQL</option>
-                  <option value="postgresql">PostgreSQL</option>
-                  <option value="h2">H2</option>
+                <label class="label">连接器类型</label>
+                <select v-model="form.connectorType" class="select">
+                  <option value="DB">数据库连接</option>
+                  <option value="CMDB">CMDB</option>
                 </select>
               </div>
-              <div class="field">
-                <label class="label">主机</label>
-                <input v-model="form.host" class="input" placeholder="如：127.0.0.1（H2 可空）" />
-              </div>
-              <div class="field">
-                <label class="label">端口</label>
-                <input v-model="form.port" class="input" inputmode="numeric" placeholder="如：3306（H2 可空）" />
-              </div>
-              <div class="field">
-                <label class="label">库名 <i class="req">*</i></label>
-                <input v-model="form.databaseName" class="input" placeholder="如：datalink" />
-              </div>
-              <div class="field">
-                <label class="label">用户名 <i class="req">*</i></label>
-                <input v-model="form.username" class="input" placeholder="如：datalink" />
-              </div>
-              <div class="field">
-                <label class="label">密码<template v-if="!editing"> <i class="req">*</i></template></label>
-                <input v-model="form.password" type="password" class="input" :placeholder="editing ? '留空则不修改' : '新建必填'" />
-              </div>
-              <div class="field">
-                <label class="label">备注</label>
-                <input v-model="form.config" class="input" placeholder="备注信息" />
-              </div>
+
+              <template v-if="form.connectorType === 'DB'">
+                <div class="field">
+                  <label class="label">数据库类型</label>
+                  <select v-model="form.dbType" class="select">
+                    <option value="mysql">MySQL</option>
+                    <option value="postgresql">PostgreSQL</option>
+                    <option value="h2">H2</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label class="label">主机</label>
+                  <input v-model="form.host" class="input" placeholder="如：127.0.0.1（H2 可空）" />
+                </div>
+                <div class="field">
+                  <label class="label">端口</label>
+                  <input v-model="form.port" class="input" inputmode="numeric" placeholder="如：3306（H2 可空）" />
+                </div>
+                <div class="field">
+                  <label class="label">库名 <i class="req">*</i></label>
+                  <input v-model="form.databaseName" class="input" placeholder="如：datalink" />
+                </div>
+                <div class="field">
+                  <label class="label">用户名 <i class="req">*</i></label>
+                  <input v-model="form.username" class="input" placeholder="如：datalink" />
+                </div>
+                <div class="field">
+                  <label class="label">密码<template v-if="!editing"> <i class="req">*</i></template></label>
+                  <input v-model="form.password" type="password" class="input" :placeholder="editing ? '留空则不修改' : '新建必填'" />
+                </div>
+                <div class="field">
+                  <label class="label">备注</label>
+                  <input v-model="form.config" class="input" placeholder="备注信息" />
+                </div>
+              </template>
+
+              <template v-else>
+                <div class="field">
+                  <label class="label">API 地址（apiUrl）<i class="req">*</i></label>
+                  <input v-model="form.apiUrl" class="input" placeholder="如：http://cmdb.corp.com:8080/api/ci" />
+                </div>
+                <div class="field">
+                  <label class="label">API Key（apiKey）<template v-if="!editing"> <i class="req">*</i></template></label>
+                  <input v-model="form.apiKey" type="password" class="input" :placeholder="editing ? '留空则不修改' : '新建必填'" />
+                </div>
+              </template>
             </div>
 
             <div v-if="formError" class="alert alert--danger mb-md">
@@ -518,6 +679,67 @@ onMounted(() => loadList(1));
               </button>
             </div>
           </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- CMDB 候选节点弹层 -->
+    <div v-if="candidatesModal" class="modal-mask" @click.self="closeCandidates">
+      <div class="modal">
+        <div class="modal-head">
+          <div class="card-title">候选节点 · {{ candidatesName }}</div>
+          <button class="modal-close" title="关闭" @click="closeCandidates">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div v-if="candidatesLoading" class="empty">
+            <Icon name="box" :size="28" />
+            <div class="empty-title">正在加载候选节点…</div>
+          </div>
+          <template v-else-if="candidatesError">
+            <div class="alert alert--danger mb-md">
+              <Icon name="alert" :size="15" />{{ candidatesError }}
+            </div>
+          </template>
+          <template v-else>
+            <div class="row-between candidates-head">
+              <span class="muted">共 {{ candidateList.length }} 个候选节点</span>
+              <button
+                class="btn btn-primary btn-sm"
+                :disabled="importingAll || candidateList.length === 0"
+                @click="importAllFromModal"
+              >
+                <Icon name="export" :size="13" />{{ importingAll ? '导入中…' : '导入全部' }}
+              </button>
+            </div>
+            <div v-if="candidateList.length" class="candidate-wrap">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>名称</th>
+                    <th>类型</th>
+                    <th>说明</th>
+                    <th>负责人</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(cd, i) in candidateList" :key="cd.name + i">
+                    <td class="cell-strong">{{ cd.name }}</td>
+                    <td><span class="tag tag--neutral">{{ cd.type ?? '—' }}</span></td>
+                    <td class="cell-muted">{{ cd.description ?? '—' }}</td>
+                    <td class="cell-muted">{{ cd.owner ?? '—' }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div v-else class="empty">
+              <Icon name="box" :size="28" />
+              <div class="empty-title">暂无候选节点</div>
+              <div class="empty-desc">可先执行「同步」拉取 CMDB 数据</div>
+            </div>
+          </template>
+          <div class="modal-foot">
+            <button type="button" class="btn btn-ghost" :disabled="importingAll" @click="closeCandidates">关闭</button>
+          </div>
         </div>
       </div>
     </div>
@@ -595,6 +817,11 @@ onMounted(() => loadList(1));
 .form-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0 16px; }
 .modal-foot { display: flex; justify-content: flex-end; gap: var(--space-sm); margin-top: 4px; }
 .req { color: var(--danger); font-style: normal; }
+
+/* CMDB 候选节点弹层 */
+.candidates-head { margin-bottom: 12px; }
+.candidate-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.candidate-wrap .data-table { min-width: 520px; }
 
 @media (max-width: 720px) {
   .form-grid { grid-template-columns: 1fr; }

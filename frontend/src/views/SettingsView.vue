@@ -1,7 +1,7 @@
 <script setup lang="ts">
-/** 系统管理页：运行信息、用户与角色、系统配置、数据权限说明 */
+/** 系统管理页：运行信息、开放 API、用户与角色、系统配置、数据权限说明 */
 import { onMounted, ref } from 'vue';
-import { fetchHealth } from '@/api';
+import { fetchHealth, fetchOpenApiInfo } from '@/api';
 import type { HealthInfo } from '@/types';
 import Tag from '@/components/Tag.vue';
 import Icon from '@/components/Icon.vue';
@@ -15,7 +15,51 @@ onMounted(async () => {
   } catch {
     healthFailed.value = true;
   }
+  loadOpenApi();
 });
+
+/* —— 开放 API（仅管理员，来自后端 /api/system/openapi）—— */
+interface OpenApiEndpoint { method: string; path: string; desc: string; }
+interface OpenApiInfo { token: string; basePath: string; endpoints: OpenApiEndpoint[]; }
+
+const openApi = ref<OpenApiInfo | null>(null);
+const openApiFailed = ref(false);
+const openApiError = ref('');
+const copiedTip = ref(false);
+
+async function loadOpenApi() {
+  openApiFailed.value = false;
+  openApiError.value = '';
+  try {
+    openApi.value = await fetchOpenApiInfo();
+  } catch (e) {
+    openApiFailed.value = true;
+    openApiError.value = (e as Error).message || '加载失败';
+  }
+}
+
+async function copyToken() {
+  if (!openApi.value?.token) return;
+  try {
+    await navigator.clipboard.writeText(openApi.value.token);
+    copiedTip.value = true;
+    window.setTimeout(() => (copiedTip.value = false), 2000);
+  } catch {
+    /* 剪贴板不可用时静默 */
+  }
+}
+
+/** HTTP 方法徽标配色 */
+function methodTone(m: string): string {
+  switch (m.toUpperCase()) {
+    case 'GET': return 'api-method--get';
+    case 'POST': return 'api-method--post';
+    case 'PUT':
+    case 'PATCH': return 'api-method--put';
+    case 'DELETE': return 'api-method--delete';
+    default: return '';
+  }
+}
 
 interface RoleItem {
   name: string;
@@ -113,6 +157,52 @@ function saveConfig() {
             <div class="mode-value mono">{{ health.time }}</div>
           </div>
         </div>
+        <div v-else class="muted">连接中…</div>
+      </div>
+    </div>
+
+    <!-- 开放 API（外部系统集成，仅管理员） -->
+    <div class="card mb-lg">
+      <div class="card-header">
+        <div class="card-title">开放 API（外部系统集成）</div>
+        <span class="card-sub faint">供外部系统集成调用 · 仅管理员可查看</span>
+      </div>
+      <div class="card-body">
+        <div v-if="openApiFailed" class="openapi-alert">
+          <Icon name="alert" :size="15" />
+          <span class="flex-1">{{ openApiError || '仅管理员可查看' }}</span>
+          <button class="btn btn-ghost btn-sm" @click="loadOpenApi">重试</button>
+        </div>
+        <template v-else-if="openApi">
+          <div class="api-token-row">
+            <div class="api-token-label">API Token</div>
+            <div class="row api-token-box">
+              <code class="api-token">{{ openApi.token }}</code>
+              <button class="btn btn-ghost btn-sm" @click="copyToken">
+                <Icon name="export" :size="13" />{{ copiedTip ? '已复制' : '复制' }}
+              </button>
+            </div>
+          </div>
+          <div class="api-base muted">Base Path：<code class="code-inline">{{ openApi.basePath }}</code></div>
+          <div class="api-list">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>方法</th>
+                  <th>路径</th>
+                  <th>说明</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(ep, i) in openApi.endpoints" :key="i">
+                  <td><span class="api-method" :class="methodTone(ep.method)">{{ ep.method }}</span></td>
+                  <td><code class="code-inline api-path">{{ ep.path }}</code></td>
+                  <td class="cell-muted">{{ ep.desc }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </template>
         <div v-else class="muted">连接中…</div>
       </div>
     </div>
@@ -274,4 +364,32 @@ function saveConfig() {
 .perm-item { gap: var(--space-md); padding: 10px 0; }
 .perm-item:last-child { padding-bottom: 0; }
 .perm-icon { color: var(--fg-faint); flex-shrink: 0; }
+
+/* 开放 API 卡 */
+.flex-1 { flex: 1; }
+.openapi-alert {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 14px; border-radius: var(--radius-sm);
+  font-size: 13px; color: var(--danger); background: var(--danger-soft);
+}
+.api-token-row { margin-bottom: 14px; }
+.api-token-label { font-size: 12px; color: var(--fg-faint); margin-bottom: 6px; }
+.api-token-box { gap: var(--space-sm); flex-wrap: wrap; }
+.api-token {
+  font-family: var(--font-mono); font-size: 12px;
+  padding: 5px 10px; border-radius: 4px; word-break: break-all;
+  background: var(--surface-2); border: 1px solid var(--border);
+}
+.api-base { font-size: 12.5px; margin-bottom: 14px; }
+.api-method {
+  font-family: var(--font-mono); font-size: 11px; font-weight: 600;
+  padding: 2px 8px; border-radius: 4px;
+}
+.api-method--get { color: var(--success); background: var(--success-soft); }
+.api-method--post { color: var(--accent); background: var(--accent-soft); }
+.api-method--put { color: var(--info); background: var(--info-soft); }
+.api-method--delete { color: var(--danger); background: var(--danger-soft); }
+.api-path { font-size: 12px; }
+.api-list { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.api-list .data-table { min-width: 480px; }
 </style>

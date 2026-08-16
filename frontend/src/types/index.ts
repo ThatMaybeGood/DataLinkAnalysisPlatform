@@ -171,19 +171,28 @@ export interface HealthInfo {
 /** 数据源连接器（对应后端 ConnectorVO，密码字段永不出现） */
 export interface DataSourceConnector {
   id: string;
-  connectorType: string;               // 固定 "DB"
-  dbType: 'mysql' | 'postgresql' | 'h2';
+  connectorType: 'DB' | 'CMDB';        // DB 数据库 / CMDB 配置管理
+  dbType?: 'mysql' | 'postgresql' | 'h2';   // 仅 DB 类型需要
   name: string;
   host?: string;
   port?: number;
-  username: string;
-  databaseName: string;
+  username?: string;                   // 仅 DB 类型需要
+  databaseName?: string;               // 仅 DB 类型需要
   schemaName?: string;
+  config?: string;                     // CMDB 存 JSON：{apiUrl, apiKey}
   enabled: number;                     // 1/0 是否启用
   isActive: number;                    // 1/0 是否为当前连接
   lastTestStatus?: 'OK' | 'FAIL';      // 最近测试结果
   lastTestTime?: string;
   createdAt?: string;
+}
+
+/** CMDB 候选节点（来自连接器候选清单） */
+export interface CandidateNode {
+  name: string;
+  type?: string;
+  description?: string;
+  owner?: string;
 }
 
 /** 连接测试结果 */
@@ -207,17 +216,18 @@ export interface TablePreview {
   rowCount: number;                    // 实际返回行数
 }
 
-/** 新建/编辑连接器请求体（password 新建必填，编辑留空 = 不改） */
+/** 新建/编辑连接器请求体（password 新建必填，编辑留空 = 不改；CMDB 无需 DB 字段） */
 export interface ConnectorSavePayload {
   name: string;
-  dbType: 'mysql' | 'postgresql' | 'h2';
+  connectorType?: 'DB' | 'CMDB';       // 缺省为 DB
+  dbType?: 'mysql' | 'postgresql' | 'h2';
   host?: string;                       // H2 可空
   port?: number;                       // H2 可空
-  databaseName: string;
+  databaseName?: string;
   schemaName?: string;
-  username: string;
+  username?: string;
   password?: string;
-  config?: string;                     // JSON 扩展参数
+  config?: string;                     // JSON 扩展参数；CMDB 存 {apiUrl, apiKey}
   enabled?: number;                    // 默认 1
 }
 
