@@ -222,8 +222,8 @@ GET    /api/versions?page=&size=&targetType=  配置版本历史（建模 CRUD �
 ```
 
 - 等级处置规则：L1→`AUTO_ACTION,TICKET,NOTIFY`、L2→`TICKET,NOTIFY`、L3→`NOTIFY`、L4→`RECORD`（含 TICKET 自动生成工单）
-- 配置版本：node/process/route 增删改自动写入 `config_version` 快照（operator 当前默认 `system`，接入登录后取当前用户）
-- **Security 说明**：当前 M0~M3 接口全放行（`permitAll`），JWT 基础设施已就绪；待前端登录页完成后按 RBAC 收紧
+- 配置版本：node/process/route 增删改自动写入 `config_version` 快照（operator 取当前登录用户）
+- **鉴权（RBAC 已启用）**：所有接口需 `Authorization: Bearer <token>`（`POST /api/auth/login` 换 token）；`/api/auth/me` 查当前用户。角色：建模/数据池写=ADMIN/MODELER，告警/工单写=ADMIN/OPERATOR/ONCALL，其余登录即可读。401/403 返回统一 JSON。内置账号：`admin/admin123`（全权）、`viewer/viewer123`（只读 VIEWER）
 
 ---
 
