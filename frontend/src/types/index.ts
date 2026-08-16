@@ -163,3 +163,60 @@ export interface HealthInfo {
   db: 'UP' | 'DOWN';
   time: string;
 }
+
+/* ============================================================
+   数据池：连接器管理（真实 DTO，对应后端 ConnectorVO）
+   ============================================================ */
+
+/** 数据源连接器（对应后端 ConnectorVO，密码字段永不出现） */
+export interface DataSourceConnector {
+  id: string;
+  connectorType: string;               // 固定 "DB"
+  dbType: 'mysql' | 'postgresql' | 'h2';
+  name: string;
+  host?: string;
+  port?: number;
+  username: string;
+  databaseName: string;
+  schemaName?: string;
+  enabled: number;                     // 1/0 是否启用
+  isActive: number;                    // 1/0 是否为当前连接
+  lastTestStatus?: 'OK' | 'FAIL';      // 最近测试结果
+  lastTestTime?: string;
+  createdAt?: string;
+}
+
+/** 连接测试结果 */
+export interface ConnectorTestResult {
+  ok: boolean;
+  latencyMs?: number;                  // 测试耗时（毫秒）
+  dbVersion?: string;                  // 数据库产品版本
+  message?: string;                    // 失败原因
+}
+
+/** 库表信息 */
+export interface TableInfo {
+  name: string;
+  type: string;                        // TABLE / VIEW
+}
+
+/** 表数据预览 */
+export interface TablePreview {
+  columns: string[];
+  rows: unknown[][];                   // 前 50 行
+  rowCount: number;                    // 实际返回行数
+}
+
+/** 新建/编辑连接器请求体（password 新建必填，编辑留空 = 不改） */
+export interface ConnectorSavePayload {
+  name: string;
+  dbType: 'mysql' | 'postgresql' | 'h2';
+  host?: string;                       // H2 可空
+  port?: number;                       // H2 可空
+  databaseName: string;
+  schemaName?: string;
+  username: string;
+  password?: string;
+  config?: string;                     // JSON 扩展参数
+  enabled?: number;                    // 默认 1
+}
