@@ -67,6 +67,18 @@
 - [x] 前端 GraphView/ProcessListView 已接真实接口（异步加载+加载/错误态），`npm run build` 全绿
 - [x] 后端 35 个测试全绿；端到端实测：读接口/搜索/CRUD 级联/前端代理全部通过
 
+### 监控域 · 摸瓜（✅ M2 第一批完成，端到端实测通过）
+- [x] `monitor` 包：Instance/InstanceNode/Checkpoint/CheckResult/Alert/Ticket 实体+Mapper+DTO+Service+Controller
+- [x] 实例追踪：`GET /api/instances`（分页+状态过滤，含流程/路线/进度/当前站）、`GET /api/instances/{id}/nodes`、POST/PUT
+- [x] 检测点：`GET /api/checkpoints?nodeId=`（含最近检测状态）、POST/PUT/DELETE
+- [x] 告警：`GET /api/alerts?status=`（含目标名）、`POST /api/alerts/{id}/resolve`
+- [x] 工单：`GET /api/tickets`、POST（从告警生成）
+- [x] **★顺藤摸瓜图算法**：`GET /api/graph/{nodeId}/trace`（有向 BFS 上下游各 2 层，节点附检测点状态）、`GET /api/graph/{nodeId}/routes`（所在路线）
+- [x] 看板聚合：`GET /api/dashboard/stats`（流程/运行中/今日完成/告警/卡住/检测覆盖/均耗时/慢节点Top/8h趋势）
+- [x] V5 种子：6 实例/39 站/11 检测点/11 结果/5 告警/3 工单（H2 实测验证）
+- [x] 前端：工作台看板/告警中心/检测点接真实接口；关系网**排查模式**（点节点显示上游绿/下游红 + 侧栏列表）
+- [x] 后端 **49 测试全绿**；端到端：摸瓜 trace/看板/告警/实例/检测点全部通过（检测点 FAIL→告警→实例卡住→trace 溯源闭环）
+
 ### 文档
 - [x] 项目文档书 v1.1 + config_version 主键修正
 
@@ -116,19 +128,23 @@ backend/src/main/resources/
 - MyBatis-Plus 方言：`MybatisPlusConfig` 按 `datalink.db-type` 切换，加 `oracle` 分支即可
 - 此机制针对**平台自身存储库**；数据池连接器（对接外部业务库）属 M1，二者不混
 
-## 六、下一步（M2 · 摸瓜：监控 + 排查）
+## 六、下一步（M3 · 择路深化 + M2 收尾）
 
-M1 陈列已交付：数据池 + 建模域 CRUD + 关系网接口 + 前端画布接真实数据。剩余前端 mock（实例/告警/看板/版本）属 M2。
+M2 第一批（监控排查基础：实例/检测点/告警/工单/顺藤摸瓜/看板）已交付。剩余：
 
-M2 按顺序：
-1. **检测点**：checkpoint/check_result 接口 + 默认/自定义检测点配置（前端 CheckpointView 接真实数据）
-2. **实例追踪**：instance/instance_node 接口 + 卡点定位（前端实例 mock 替换；feature 推断/人工标记）
-3. **顺藤摸瓜排查**：问题站点上下游高亮 + 溯源/影响面（图算法在 `graph` 服务扩展）
-4. **告警 + 工单**：alert/ticket 接口 + 告警中心接真实数据（前端 AlertView）
-5. **看板**：`/api/dashboard/stats` 聚合接口（前端 DashboardView 替换 mockDashboardStats）
-6. **等级预警/干预**：level L1-L4 驱动（M2 末）
-7. M1 末/ M2 初收紧 Security：按 RBAC 授权（当前 `anyRequest().permitAll()`）
-8. 远期：PostgreSQL 实机验证、数据池接 Oracle、版本留痕 config_version 完善
+**M2 收尾**：
+1. **等级预警/干预**：level L1-L4 驱动告警处置（系统自动动作+工单+通知组合，见文档书 6.3）
+2. **工单处置流程**：OPEN/PROCESSING/RESOLVED 状态流转 + 指派
+3. **M1 遗留**：收紧 Security 按 RBAC 授权（当前 `anyRequest().permitAll()`）；config_version 版本留痕完善
+4. 邮件/钉钉通知渠道（远期）；定时采集/检测调度（Spring @Scheduled）
+
+**M3 择路深化**：
+5. **路线对比 / 路径查询**：A→B 多走法、路线并排对比（图算法扩展）
+6. **影响面 / 溯源深化**：顺藤摸瓜→影响下游实例/路线清单
+7. **CMDB 连接器 / 开放 API**：数据池接 CMDB；对外上报/查询 API
+8. **流向动画 / 排查模式 3D 深化**
+
+**远期**：PostgreSQL 实机验证、数据池接 Oracle、3D/大屏、制造场景
 
 ## 七、用户工作偏好（重要）
 
@@ -139,6 +155,6 @@ M2 按顺序：
 
 ## 八、续接起点
 
-**当前任务 = M2 · 摸瓜（监控 + 排查）**。M0（脚手架/双库）+ M1（数据池 + 建模域 + 关系网接口对接画布）均已交付并推送到 GitHub。
-新会话第一步：读本文档 → `cd backend && mvn spring-boot:run` 起服务 → 从检测点/实例追踪开始。
-前端已可用：http://localhost:5173（关系网画布显示真实种子数据，数据接入页管理数据池）。
+**当前任务 = M2 收尾 + M3 择路深化**。M0（脚手架/双库）+ M1（数据池 + 建模域 + 关系网对接）+ M2 第一批（监控排查基础 + 顺藤摸瓜 + 看板）均已交付并推送到 GitHub。
+新会话第一步：读本文档 → `cd backend && mvn spring-boot:run` 起服务 → 从等级预警/干预或路线对比/路径查询开始。
+前端已完整可用：http://localhost:5173（关系网画布+排查模式、工作台看板、告警中心、检测点、数据接入，全部真实数据）。

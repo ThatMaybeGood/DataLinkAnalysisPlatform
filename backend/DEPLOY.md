@@ -191,6 +191,26 @@ GET    /api/search?q=                全局搜索（节点/流程/路线按 code
 
 > 建模数据的种子示例（V2/V4 迁移）包含「订单支付流程」「付款流程（风控/支付分支）」两套路网，启动即自动建好，可直接在关系网画布查看。
 
+### 4.3 监控域接口（摸瓜：实例 / 检测点 / 告警 / 工单 / 排查）
+
+```
+GET    /api/instances?page=&size=&status=   实例分页（含流程/路线/进度/当前站）
+GET    /api/instances/{id}/nodes            实例经过站点明细
+POST   /api/instances                       新建实例（nodeIds 生成链路）
+PUT    /api/instances/{id}                  更新进度/状态
+GET    /api/checkpoints?nodeId=             站点检测点（含最近检测状态）
+POST/PUT/DELETE /api/checkpoints[/{id}]     检测点维护
+GET    /api/alerts?status=                  告警列表（含目标名）
+POST   /api/alerts/{id}/resolve             关闭告警
+GET    /api/tickets                         工单列表
+POST   /api/tickets                         从告警生成工单
+GET    /api/graph/{nodeId}/trace            ★顺藤摸瓜：上游/下游（BFS，附检测点状态）
+GET    /api/graph/{nodeId}/routes           该节点所在路线
+GET    /api/dashboard/stats                 看板聚合（流程/运行/今日完成/告警/卡住/覆盖/均耗时/慢节点/趋势）
+```
+
+> 监控示例数据（V5 迁移）含 6 实例 / 11 检测点 / 5 告警 / 3 工单；「支付系统检测 FAIL → 告警 → 实例卡住 → 顺藤摸瓜溯源」闭环可直接在界面体验。
+
 ---
 
 ## 5. 数据库备份与运维建议
