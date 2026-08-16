@@ -79,6 +79,7 @@ java -jar target/datalink-backend-0.1.0.jar \
 | `DB_USER` | `datalink` | 数据库账号 |
 | `DB_PASSWORD` | `datalink123` | 数据库密码（生产必改） |
 | `DATALINK_JWT_SECRET` | 开发默认串 | JWT 签名密钥，**必须 ≥32 字节随机串**，生产必改 |
+| `DATALINK_CRYPTO_KEY` | 开发默认串 | 数据池连接器密码 AES-GCM 加密密钥，**必须 16/24/32 字节**，生产必改 |
 | `SERVER_PORT` | 8080 | 服务端口（Spring 标准 `server.port`，可用 `SERVER_PORT` 覆盖） |
 
 例：
@@ -148,8 +149,29 @@ docker run -d -p 8080:8080 \
 
 3. **不写死方言 SQL**：业务查询尽量使用通用 SQL；确需差异的部分封装在对应 Mapper XML。
 
-> 注意：此机制针对的是**平台自身存储库**。「数据接入/数据池」连接器（对接外部业务库，
-> 支持 MySQL/Oracle/PG/Excel 等）属于 M1 数据接入模块，另行实现，二者互不影响。
+> 注意：此机制针对的是**平台自身存储库**。「数据池」连接器（对接外部业务库）为独立模块，见 4.1，二者互不影响。
+
+### 4.1 数据池模块（外部数据库连接管理）
+
+平台可注册管理多个外部数据库连接（**数据池**），支持 MySQL 8 / PostgreSQL / H2（方言可插拔，后续加 Oracle 只需新增方言适配器 + JDBC 驱动）。配置存平台库（全局共享，多节点各自建连接池，**预留分布式拓展**）。
+
+**前端入口**：「数据接入」页（左侧导航）。支持：连接列表 / 新建·编辑 / 测试连通（延迟+版本）/ 设为当前（全局唯一）/ 浏览库表 / 数据预览（前 50 行）。
+
+**REST 接口**（`/api/connectors`，统一 `/api` 前缀）：
+```
+GET    /api/connectors                    分页+关键字
+POST   /api/connectors                    新建（密码必填，AES 加密入库）
+PUT    /api/connectors/{id}               修改（密码留空=不改）
+DELETE /api/connectors/{id}               删除
+POST   /api/connectors/{id}/test          测试连通 → {ok, latencyMs, dbVersion, message}
+POST   /api/connectors/{id}/activate      设为当前（自动取消其它）
+GET    /api/connectors/{id}/tables        浏览库表清单
+GET    /api/connectors/{id}/tables/{table}/preview  数据预览
+```
+
+**安全**：连接器密码 AES-GCM 加密存 `connector.encrypted_pwd`，密钥来自 `DATALINK_CRYPTO_KEY`；接口永不返回密码；浏览/预览为只读连接、行数受限。
+
+**数据池 vs 平台自身存储**：数据池用于「连接外部业务库」（M2 采集/监控将使用），平台自身建模/监控/配置数据仍存于 H2 或 MySQL（第 1、2 节），二者隔离。
 
 ---
 

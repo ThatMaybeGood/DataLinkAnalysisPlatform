@@ -56,6 +56,7 @@ backend/
 │   ├── common/              # 统一响应 Result / 异常处理
 │   ├── config/              # MyBatis-Plus / CORS / Jackson / Swagger / Security / JWT
 │   ├── system/              # 用户·角色·认证（登录）
+│   ├── datasource/          # ★ 数据池：连接器管理（方言可插拔 + 连接池 + AES 加密）
 │   └── monitor/             # 健康探活
 └── src/main/resources/
     ├── application.yml          # 通用配置（默认 profile=local）
@@ -64,8 +65,13 @@ backend/
     └── db/migration/
         ├── h2/                  # H2 建表脚本
         ├── mysql/               # MySQL 建表脚本
-        └── common/              # 两库共用种子数据
+        └── common/              # 两库共用迁移（含 V3 connector 扩展）与种子数据
 ```
+
+## 数据池模块
+
+平台可注册管理多个外部数据库连接（MySQL / PostgreSQL / H2，方言可插拔、后续可扩展 Oracle 等），
+前端「数据接入」页可视化增删改、测试连通、切换当前连接、浏览库表与数据预览。详见 [DEPLOY.md](DEPLOY.md)。
 
 ## 详细部署
 
