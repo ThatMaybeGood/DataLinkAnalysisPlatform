@@ -225,6 +225,26 @@ GET    /api/versions?page=&size=&targetType=  配置版本历史（建模 CRUD �
 - 配置版本：node/process/route 增删改自动写入 `config_version` 快照（operator 取当前登录用户）
 - **鉴权（RBAC 已启用）**：所有接口需 `Authorization: Bearer <token>`（`POST /api/auth/login` 换 token）；`/api/auth/me` 查当前用户。角色：建模/数据池写=ADMIN/MODELER，告警/工单写=ADMIN/OPERATOR/ONCALL，其余登录即可读。401/403 返回统一 JSON。内置账号：`admin/admin123`（全权）、`viewer/viewer123`（只读 VIEWER）
 
+### 4.5 开放 API（外部系统集成）与 CMDB 连接器
+
+**开放 API**（供外部系统上报/查询，鉴权用 `X-API-Key`，独立于登录 JWT）：
+```
+POST /api/open/instances       上报/更新实例（按 bizNo 幂等）
+GET  /api/open/processes       查询流程
+GET  /api/open/nodes           查询站点
+POST /api/open/checkpoints/{id}/trigger   触发检测
+```
+`X-API-Key` 值来自配置 `datalink.openapi.token`（环境变量 `DATALINK_OPENAPI_TOKEN`，默认开发值，**生产必改**）；无效 key 返回 401。
+
+**CMDB 连接器**（数据池新增 HTTP/API 型连接器，采集外部资产一键导入为站点）：
+```
+POST /api/connectors/{id}/test        测试连通（CMDB 类型走 HTTP）
+POST /api/connectors/{id}/sync        采集资产生成候选
+GET  /api/connectors/{id}/candidates  预览候选
+POST /api/connectors/{id}/import      导入候选为 node（按 code 判重）
+```
+创建方式：连接器 `connectorType=CMDB`，`config` 存 `{"apiUrl":"...","apiKey":"..."}`（CMDB 无需库名/密码）。前端表单暂未加 CMDB 类型，可用 API/Swagger 操作。
+
 ---
 
 ## 5. 数据库备份与运维建议
