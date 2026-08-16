@@ -16,10 +16,12 @@ const router = createRouter({
       children: [
         { path: '', name: 'dashboard', component: () => import('@/views/DashboardView.vue'), meta: { title: '工作台' } },
         { path: 'graph', name: 'graph', component: () => import('@/views/GraphView.vue'), meta: { title: '关系网' } },
+        { path: '3d', name: '3d', component: () => import('@/views/Graph3DView.vue'), meta: { title: '3D 视图' } },
         { path: 'processes', name: 'processes', component: () => import('@/views/ProcessListView.vue'), meta: { title: '流程列表' } },
         { path: 'data-sources', name: 'data-sources', component: () => import('@/views/DataSourceView.vue'), meta: { title: '数据接入' } },
         { path: 'checkpoints', name: 'checkpoints', component: () => import('@/views/CheckpointView.vue'), meta: { title: '检测点' } },
         { path: 'alerts', name: 'alerts', component: () => import('@/views/AlertView.vue'), meta: { title: '告警中心' } },
+        { path: 'bigscreen', name: 'bigscreen', component: () => import('@/views/BigScreenView.vue'), meta: { title: '大屏' } },
         { path: 'versions', name: 'versions', component: () => import('@/views/VersionView.vue'), meta: { title: '配置版本' } },
         { path: 'settings', name: 'settings', component: () => import('@/views/SettingsView.vue'), meta: { title: '系统管理' } },
       ],
