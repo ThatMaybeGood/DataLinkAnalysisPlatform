@@ -1,20 +1,16 @@
 /* ============================================================
    DataLink 平台 · 数据访问层
    关系网 / 流程、数据池（连接器管理）、监控域（实例 / 告警 / 看板 /
-   检测点 / 上下游追踪）与健康探活均已接入真实 HTTP 接口；
-   版本记录仍为 Mock 数据（演示用）。
+   检测点 / 上下游追踪 / 版本记录 / 路径 / 影响面 / 工单）与健康探活
+   均已接入真实 HTTP 接口（Result<T>，code === 200 成功）。
    接口路径与 v1.1 项目文档书第 5 章模块一致。
    ============================================================ */
 
-import { mockVersions } from './mockData';
 import type {
   AlertItem, Checkpoint, ConnectorSavePayload, ConnectorTestResult, DashboardStats,
   DataSourceConnector, GraphEdge, GraphNode, HealthInfo, Instance,
   ProcessDef, Route, TableInfo, TablePreview, VersionRecord,
 } from '@/types';
-
-/** 模拟网络延迟，便于观察加载状态（接入后端后删除） */
-const delay = (ms = 120) => new Promise((r) => setTimeout(r, ms));
 
 /** 关系网 / 流程数据（真实接口，返回 Result<T>，code === 200 成功） */
 export async function fetchNodes(): Promise<GraphNode[]> {
@@ -29,7 +25,16 @@ export async function fetchProcesses(): Promise<ProcessDef[]> {
 export async function fetchRoutes(): Promise<Route[]> {
   return unwrap<Route[]>(await fetch('/api/routes'));
 }
-export async function fetchVersions(): Promise<VersionRecord[]> { await delay(); return mockVersions; }
+
+/** 配置版本分页查询（page 从 1 起；targetType 为空 = 全部类型） */
+export async function fetchVersions(
+  page = 1, size = 10, targetType = '',
+): Promise<{ records: VersionRecord[]; total: number }> {
+  const qs = new URLSearchParams({ page: String(page), size: String(size) });
+  if (targetType) qs.set('targetType', targetType);
+  const res = await fetch(`/api/versions?${qs.toString()}`);
+  return unwrap<{ records: VersionRecord[]; total: number }>(res);
+}
 
 // ============================================================
 // 监控域：实例 / 告警 / 看板 / 检测点 / 上下游追踪（真实接口）
@@ -79,6 +84,42 @@ export async function resolveAlert(id: string): Promise<void> {
   await unwrap<void>(res);
 }
 
+/** 工单更新请求体（assignee / status / description 均可选） */
+export interface TicketUpdatePayload {
+  assignee?: string;
+  status?: string;
+  description?: string;
+}
+
+/** 更新工单 */
+export async function updateTicket(id: string, payload: TicketUpdatePayload): Promise<void> {
+  const res = await fetch(`/api/tickets/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  await unwrap<void>(res);
+}
+
+/** 新建告警请求体（type / targetType / targetId / message / severity） */
+export interface AlertCreatePayload {
+  type: AlertItem['type'];
+  targetType: string;
+  targetId: string;
+  message: string;
+  severity: AlertItem['severity'];
+}
+
+/** 新建告警（后端自动应用等级处置） */
+export async function createAlert(payload: AlertCreatePayload): Promise<void> {
+  const res = await fetch('/api/alerts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  await unwrap<void>(res);
+}
+
 /** 看板统计 */
 export async function fetchDashboardStats(): Promise<DashboardStats> {
   const res = await fetch('/api/dashboard/stats');
@@ -95,6 +136,33 @@ export async function fetchCheckpoints(nodeId: string): Promise<Checkpoint[]> {
 export async function fetchGraphTrace(nodeId: string): Promise<GraphTrace> {
   const res = await fetch(`/api/graph/${encodeURIComponent(nodeId)}/trace`);
   return unwrap<GraphTrace>(res);
+}
+
+/** 多路径查询结果（对应后端 PathVO：A→B 的一条可达路径） */
+export interface GraphPathResult {
+  nodeIds: string[];
+  nodeNames: string[];
+  length: number;
+}
+
+/** A→B 多路径查询（maxDepth 默认 8，返回全部可达路径） */
+export async function queryGraphPaths(from: string, to: string, maxDepth = 8): Promise<GraphPathResult[]> {
+  const qs = new URLSearchParams({ from, to, maxDepth: String(maxDepth) });
+  const res = await fetch(`/api/graph/path?${qs.toString()}`);
+  return unwrap<GraphPathResult[]>(res);
+}
+
+/** 影响面（对应后端 ImpactVO：下游节点 / 受影响实例 / 受影响路线） */
+export interface ImpactResult {
+  downstream: GraphNode[];
+  affectedInstances: Instance[];
+  affectedRoutes: Route[];
+}
+
+/** 节点影响面分析 */
+export async function fetchImpact(nodeId: string): Promise<ImpactResult> {
+  const res = await fetch(`/api/graph/${encodeURIComponent(nodeId)}/impact`);
+  return unwrap<ImpactResult>(res);
 }
 
 /** 健康探活（真实接口，非 mock）：返回运行模式 / 数据库状态 / 版本 */

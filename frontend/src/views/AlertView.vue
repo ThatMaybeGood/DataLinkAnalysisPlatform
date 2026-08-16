@@ -164,7 +164,6 @@ async function handleResolve(alert: AlertItem) {
                         class="btn btn-outline btn-sm" :disabled="resolvingId === alert.id"
                         @click="handleResolve(alert)"
                       >{{ resolvingId === alert.id ? '处理中…' : '处理' }}</button>
-                      <button class="btn btn-ghost btn-sm">生成工单</button>
                     </template>
                     <template v-else>
                       <button class="btn btn-ghost btn-sm">查看</button>
