@@ -46,11 +46,30 @@ const statusStroke: Record<string, string> = {
   ACTIVE: '#1e2a4a', WARNING: '#f59e0b', FAIL: '#ef4444', DISABLED: '#3a4560',
 };
 
-function toNodeData(n: GraphNode): NodeData {
+/** 节点度数（在 edges 中作为 source/target 出现的次数）——按关联度定大小 */
+function nodeDegree(): Map<string, number> {
+  const deg = new Map<string, number>();
+  props.edges.forEach((e) => {
+    deg.set(e.source, (deg.get(e.source) ?? 0) + 1);
+    deg.set(e.target, (deg.get(e.target) ?? 0) + 1);
+  });
+  return deg;
+}
+
+/** 节点尺寸：基础 30 + 每多一条连接 +4（枢纽稍大、可辨识） */
+function nodeSize(degree: number): number {
+  return 30 + degree * 4;
+}
+
+function toNodeData(n: GraphNode, degree: Map<string, number>): NodeData {
+  // 注意：data 里只放展示所需字段，绝不放 id/source/target（避免 G6 元素解析混乱触发 getPorts 崩溃）
   return {
     id: n.id,
     data: {
-      ...n,
+      name: n.name,
+      nodeType: n.nodeType,
+      status: n.status,
+      degree: degree.get(n.id) ?? 0,
       _color: nodeTypeColor[n.nodeType] ?? '#94a3b8',
       _stroke: statusStroke[n.status] ?? '#1e2a4a',
     },
@@ -58,7 +77,8 @@ function toNodeData(n: GraphNode): NodeData {
 }
 
 function toEdgeData(e: GraphEdge): EdgeData {
-  return { id: e.id, source: e.source, target: e.target, data: e } as unknown as EdgeData;
+  // data 里同样不放 source/target/id
+  return { id: e.id, source: e.source, target: e.target, data: { relationType: e.relationType } } as unknown as EdgeData;
 }
 
 /** 路线高亮：高亮路线内节点与边，其余变暗 */
@@ -136,8 +156,9 @@ async function render() {
   renderError.value = null;
   if (!graph) return;
   try {
+    const degree = nodeDegree();
     const data: GraphData = {
-      nodes: props.nodes.map(toNodeData),
+      nodes: props.nodes.map((n) => toNodeData(n, degree)),
       edges: props.edges.map(toEdgeData),
     };
     graph.setData(data);
@@ -194,14 +215,16 @@ onMounted(async () => {
       padding: 40, // fitView 适配时留 40 内边距
       behaviors: ['drag-canvas', 'zoom-canvas', 'drag-element'],
       layout: {
-        type: 'force',
-        linkDistance: 150,
+        // 球状体布局：concentric 同心圆，连接度高的枢纽居中、外围按关联度成环（确定性布局，规避力导向异步空白）
+        type: 'concentric',
         preventOverlap: true,
-        nodeStrength: -300,
+        minNodeSpacing: 42,
+        maxLevelDiff: 90,
+        nodeSize: (d: any) => nodeSize(d?.data?.degree ?? d?.degree ?? 0),
       } as unknown as never,
       node: {
         style: {
-          size: 32,
+          size: (d: any) => nodeSize(d?.data?.degree ?? d?.degree ?? 0),
           fill: (d: any) => d?.data?._color ?? '#94a3b8',
           stroke: (d: any) => d?.data?._stroke ?? '#1e2a4a',
           lineWidth: 4,
