@@ -1,13 +1,12 @@
 /* ============================================================
    DataLink 平台 · 数据访问层
-   大部分仍为 Mock 数据（演示，供 Dashboard 等页面使用）；
-   数据池（连接器管理）与健康探活已接入真实 HTTP 接口。
+   关系网 / 流程、数据池（连接器管理）与健康探活已接入真实 HTTP 接口；
+   实例 / 告警 / 版本 / 看板统计仍为 Mock 数据（演示用）。
    接口路径与 v1.1 项目文档书第 5 章模块一致。
    ============================================================ */
 
 import {
-  mockAlerts, mockDashboardStats, mockEdges,
-  mockInstances, mockNodes, mockProcesses, mockRoutes, mockVersions,
+  mockAlerts, mockDashboardStats, mockInstances, mockVersions,
 } from './mockData';
 import type {
   AlertItem, ConnectorSavePayload, ConnectorTestResult, DashboardStats,
@@ -18,10 +17,19 @@ import type {
 /** 模拟网络延迟，便于观察加载状态（接入后端后删除） */
 const delay = (ms = 120) => new Promise((r) => setTimeout(r, ms));
 
-export async function fetchNodes(): Promise<GraphNode[]> { await delay(); return mockNodes; }
-export async function fetchEdges(): Promise<GraphEdge[]> { await delay(); return mockEdges; }
-export async function fetchProcesses(): Promise<ProcessDef[]> { await delay(); return mockProcesses; }
-export async function fetchRoutes(): Promise<Route[]> { await delay(); return mockRoutes; }
+/** 关系网 / 流程数据（真实接口，返回 Result<T>，code === 200 成功） */
+export async function fetchNodes(): Promise<GraphNode[]> {
+  return unwrap<GraphNode[]>(await fetch('/api/nodes'));
+}
+export async function fetchEdges(): Promise<GraphEdge[]> {
+  return unwrap<GraphEdge[]>(await fetch('/api/edges'));
+}
+export async function fetchProcesses(): Promise<ProcessDef[]> {
+  return unwrap<ProcessDef[]>(await fetch('/api/processes'));
+}
+export async function fetchRoutes(): Promise<Route[]> {
+  return unwrap<Route[]>(await fetch('/api/routes'));
+}
 export async function fetchInstances(): Promise<Instance[]> { await delay(); return mockInstances; }
 export async function fetchAlerts(): Promise<AlertItem[]> { await delay(); return mockAlerts; }
 export async function fetchVersions(): Promise<VersionRecord[]> { await delay(); return mockVersions; }

@@ -2,8 +2,8 @@
 /** 关系网核心页：路网视图 + 路线高亮 + 站点详情 + 路线条（地铁式） */
 import { computed, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
-import { mockEdges, mockNodes, mockProcesses, mockRoutes } from '@/api/mockData';
-import type { GraphNode } from '@/types';
+import { fetchEdges, fetchNodes, fetchProcesses, fetchRoutes } from '@/api';
+import type { GraphEdge, GraphNode, ProcessDef, Route } from '@/types';
 import GraphCanvas from '@/components/GraphCanvas.vue';
 import NodeDetailPanel from '@/components/NodeDetailPanel.vue';
 import Icon from '@/components/Icon.vue';
@@ -16,6 +16,13 @@ const selectedNode = ref<GraphNode | null>(null);
 const keyword = ref('');
 const focusNodeId = ref<string | null>(null);
 
+const nodes = ref<GraphNode[]>([]);
+const edges = ref<GraphEdge[]>([]);
+const processes = ref<ProcessDef[]>([]);
+const routes = ref<Route[]>([]);
+const loading = ref(true);
+const loadError = ref('');
+
 const nodeTypeLegend: Record<string, string> = {
   SYSTEM: '系统', DATABASE: '数据库/表', DEPARTMENT: '部门/岗位', ACTION: '业务动作',
 };
@@ -24,14 +31,14 @@ const colorOf: Record<string, string> = {
   SYSTEM: '#3b82f6', DATABASE: '#8b5cf6', DEPARTMENT: '#06b6d4', ACTION: '#f59e0b',
 };
 
-const routesOfProcess = computed(() => mockRoutes.filter((r) => r.processId === selectedProcessId.value));
-const activeRoute = computed(() => mockRoutes.find((r) => r.id === activeRouteId.value) ?? null);
+const routesOfProcess = computed(() => routes.value.filter((r) => r.processId === selectedProcessId.value));
+const activeRoute = computed(() => routes.value.find((r) => r.id === activeRouteId.value) ?? null);
 const canvasActiveRouteId = computed(() => (viewMode.value === 'route' ? activeRouteId.value : null));
 
 function selectProcess(id: string) {
   selectedProcessId.value = id;
-  const routes = mockRoutes.filter((r) => r.processId === id);
-  const def = routes.find((r) => r.priority === 'DEFAULT') ?? routes[0];
+  const rs = routes.value.filter((r) => r.processId === id);
+  const def = rs.find((r) => r.priority === 'DEFAULT') ?? rs[0];
   activeRouteId.value = def?.id ?? null;
 }
 
@@ -42,11 +49,11 @@ function selectRoute(id: string) {
 }
 
 function nodeName(id: string) {
-  return mockNodes.find((n) => n.id === id)?.name ?? id;
+  return nodes.value.find((n) => n.id === id)?.name ?? id;
 }
 
 function stationClass(id: string) {
-  const n = mockNodes.find((x) => x.id === id);
+  const n = nodes.value.find((x) => x.id === id);
   if (!n) return '';
   if (n.status === 'FAIL') return 'station--fail';
   if (n.status === 'WARNING') return 'station--warn';
@@ -55,21 +62,39 @@ function stationClass(id: string) {
 
 function focusStation(id: string) {
   focusNodeId.value = id;
-  selectedNode.value = mockNodes.find((n) => n.id === id) ?? null;
+  selectedNode.value = nodes.value.find((n) => n.id === id) ?? null;
 }
 
 function onSearch() {
   const kw = keyword.value.trim();
   if (!kw) { focusNodeId.value = null; selectedNode.value = null; return; }
-  const hit = mockNodes.find(
+  const hit = nodes.value.find(
     (n) => n.name.includes(kw) || (n.code ?? '').includes(kw) || n.checkpoints.some((c) => c.name.includes(kw)),
   );
   if (hit) focusStation(hit.id);
 }
 
-onMounted(() => {
+/** 加载关系网数据（供重试复用） */
+async function loadGraph() {
+  loading.value = true;
+  loadError.value = '';
+  try {
+    const [n, e, p, r] = await Promise.all([fetchNodes(), fetchEdges(), fetchProcesses(), fetchRoutes()]);
+    nodes.value = n;
+    edges.value = e;
+    processes.value = p;
+    routes.value = r;
+  } catch (err) {
+    loadError.value = err instanceof Error ? err.message : '关系网数据加载失败';
+  } finally {
+    loading.value = false;
+  }
+}
+
+onMounted(async () => {
+  await loadGraph();
   const q = route.query.q as string | undefined;
-  if (q) { keyword.value = q; onSearch(); }
+  if (q && !loadError.value) { keyword.value = q; onSearch(); }
 });
 </script>
 
@@ -79,7 +104,7 @@ onMounted(() => {
     <div class="graph-toolbar">
       <div class="row">
         <select v-model="selectedProcessId" class="select process-select" @change="selectProcess(selectedProcessId)">
-          <option v-for="p in mockProcesses" :key="p.id" :value="p.id">{{ p.name }}</option>
+          <option v-for="p in processes" :key="p.id" :value="p.id">{{ p.name }}</option>
         </select>
 
         <div class="route-chips">
@@ -110,8 +135,15 @@ onMounted(() => {
 
     <!-- 画布区 -->
     <div class="graph-body">
+      <!-- 加载 / 错误态 -->
+      <div v-if="loading" class="graph-status">加载关系网数据…</div>
+      <div v-else-if="loadError" class="graph-status graph-status--error">
+        <span>加载失败：{{ loadError }}</span>
+        <button class="retry-btn" @click="loadGraph">重试</button>
+      </div>
+
       <GraphCanvas
-        :nodes="mockNodes" :edges="mockEdges" :routes="mockRoutes"
+        :nodes="nodes" :edges="edges" :routes="routes"
         :active-route-id="canvasActiveRouteId"
         :focus-node-id="focusNodeId"
         @node-click="selectedNode = $event"
@@ -130,9 +162,9 @@ onMounted(() => {
 
       <!-- 详情抽屉 -->
       <NodeDetailPanel
-        :node="selectedNode" :nodes="mockNodes" :edges="mockEdges"
+        :node="selectedNode" :nodes="nodes" :edges="edges"
         @close="selectedNode = null"
-        @focus="(id) => { focusNodeId = id; selectedNode = mockNodes.find(n => n.id === id) ?? null }"
+        @focus="(id) => { focusNodeId = id; selectedNode = nodes.find(n => n.id === id) ?? null }"
       />
     </div>
 
@@ -188,6 +220,20 @@ onMounted(() => {
   background-size: 22px 22px;
   min-height: 0; overflow: hidden;
 }
+
+.graph-status {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  z-index: 6; display: flex; align-items: center; gap: 12px;
+  padding: 12px 18px; border-radius: var(--radius);
+  background: rgba(13,20,36,.92); border: 1px solid var(--canvas-border);
+  color: var(--canvas-fg); font-size: 13px; box-shadow: var(--shadow-canvas);
+}
+.graph-status--error { color: #fca5a5; }
+.retry-btn {
+  height: 28px; padding: 0 12px; border-radius: 6px; border: 1px solid var(--canvas-border);
+  background: var(--accent); color: #fff; font-size: 12px; cursor: pointer; transition: opacity .15s;
+}
+.retry-btn:hover { opacity: .88; }
 
 .legend {
   position: absolute; left: 16px; bottom: 16px; z-index: 4;

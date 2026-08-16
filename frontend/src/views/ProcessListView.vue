@@ -1,8 +1,9 @@
 <script setup lang="ts">
 /** 流程列表：统一管理业务流程与数据链路，支持场景 / 等级 / 关键字筛选 */
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { mockProcesses } from '@/api/mockData';
+import { fetchProcesses } from '@/api';
+import type { ProcessDef } from '@/types';
 import Icon from '@/components/Icon.vue';
 
 const router = useRouter();
@@ -11,6 +12,10 @@ const keyword = ref('');
 const sceneFilter = ref('');
 const levelFilter = ref('');
 
+const processes = ref<ProcessDef[]>([]);
+const loading = ref(true);
+const loadError = ref('');
+
 /** 场景 → 展示文案与配色（复用全局 tag 色板） */
 const sceneMeta: Record<string, { label: string; tone: string }> = {
   BUSINESS: { label: '业务', tone: 'tag--info' },
@@ -18,7 +23,7 @@ const sceneMeta: Record<string, { label: string; tone: string }> = {
 };
 
 const filtered = computed(() =>
-  mockProcesses.filter((p) => {
+  processes.value.filter((p) => {
     const kw = keyword.value.trim().toLowerCase();
     const hitKw = !kw || p.name.toLowerCase().includes(kw);
     const hitScene = !sceneFilter.value || p.scene === sceneFilter.value;
@@ -34,6 +39,16 @@ function sceneMetaOf(scene: string) {
 function goGraph() {
   router.push('/graph');
 }
+
+onMounted(async () => {
+  try {
+    processes.value = await fetchProcesses();
+  } catch (err) {
+    loadError.value = err instanceof Error ? err.message : '流程数据加载失败';
+  } finally {
+    loading.value = false;
+  }
+});
 </script>
 
 <template>
@@ -81,7 +96,16 @@ function goGraph() {
         <span class="faint">按场景 / 等级 / 名称筛选</span>
       </div>
 
-      <template v-if="filtered.length">
+      <div v-if="loading" class="empty">
+        <div class="empty-title">加载流程数据…</div>
+      </div>
+
+      <div v-else-if="loadError" class="empty">
+        <div class="empty-title">加载失败</div>
+        <div class="empty-desc">{{ loadError }}</div>
+      </div>
+
+      <template v-else-if="filtered.length">
         <table class="data-table">
           <thead>
             <tr>
