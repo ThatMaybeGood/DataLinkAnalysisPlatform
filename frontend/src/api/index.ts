@@ -8,7 +8,7 @@
 
 import type {
   AlertItem, CandidateNode, Checkpoint, ConnectorSavePayload, ConnectorTestResult, DashboardStats,
-  DataSourceConnector, GraphEdge, GraphNode, HealthInfo, Instance,
+  DataSourceConnector, EngineDraft, GraphEdge, GraphNode, HealthInfo, Instance,
   LoginResult, ProcessDef, Route, TableInfo, TablePreview, VersionRecord,
 } from '@/types';
 

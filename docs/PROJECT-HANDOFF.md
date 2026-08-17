@@ -1,6 +1,6 @@
 # 项目续接文档（HANDOFF）
 
-> 本文件是「对话打包」：**新会话先读本文件即可无缝续接**。主文档是项目文档书 v1.3，本文件用于快速恢复进度、记录已验证事实与下一步起点。
+> 本文件是「对话打包」：**新会话先读本文件即可无缝续接**。主文档是项目文档书 v1.5，本文件用于快速恢复进度、记录已验证事实与下一步起点。
 
 ## 一、这是什么项目
 
@@ -12,7 +12,7 @@
 
 | 文档 | 路径 | 用途 |
 | --- | --- | --- |
-| **项目文档书 v1.3** | `docs/数据关联与业务流程监控分析平台-项目文档书-v1.0.md` | ⭐ 交付基准：14 章 + 4 附录，含完整 DDL/RBAC/用户故事/页面清单 |
+| **项目文档书 v1.5** | `docs/数据关联与业务流程监控分析平台-项目文档书-v1.0.md` | ⭐ 交付基准：14 章 + 4 附录，含完整 DDL/RBAC/用户故事/页面清单 |
 | 讨论草稿 | `docs/superpowers/specs/2026-08-15-数据关联流向分析平台-设计方案.md` | 需求演进过程记录 |
 | 前端说明 | `frontend/README.md`、`frontend/DEPLOY.md` | 前端开发与部署 |
 | 后端说明 | `backend/README.md`、`backend/DEPLOY.md` | **后端开发与部署（含双数据库模式）** |
@@ -123,8 +123,48 @@
   - [x] PathMapView 地铁图（SVG 多色平行线 / 双圈换乘站 / 起终点徽标 / 标签自适应）
 - [x] 路由 + SideNav 导航项；`npm run build` 全绿
 
+### 图来源 G1 三层视图定型（✅ 完成，2026-08-17，无头 Chrome 程序化复核通过）
+- [x] 三层视图映射规则：数据流（DATABASE/TABLE + DATA_FLOW）、业务流（SYSTEM/SUBSYSTEM/DEPARTMENT/ROLE/ACTION + API/SUBSCRIBE/APPROVAL）、融合（全部，默认）
+- [x] GraphView 加视图切换 tabs（.layer-switch：数据流/业务流/融合），前端投影不另起"层"概念，Node/Relation 实体零改动
+- [x] layerViewNodes/layerViewEdges computed 过滤 + routeViewNodes/Edges 链式叠加（层过滤在路线过滤之上）；图例随层收窄；3D 画布同步接 layerView
+- [x] **无头 Chrome 程序化复核三层渲染**（CDP 附加到已加载 /graph 页，读 Vue setupState + 图例 + 边点统计）：
+  - 融合：18 节点（SYSTEM4/SUBSYSTEM2/DATABASE4/TABLE2/DEPARTMENT2/ACTION4）+ 20 边（API2/DATA_FLOW15/APPROVAL3），图例 6 项
+  - 数据流：6 节点（DATABASE4/TABLE2）+ 2 边（DATA_FLOW2），图例收窄为 3 项
+  - 业务流：12 节点（SYSTEM4/SUBSYSTEM2/DEPARTMENT2/ACTION4）+ 10 边（API2/APPROVAL3/DATA_FLOW5），图例 5 项
+  - 切回融合恢复 18/20，可回退 ✓
+- [x] `npm run build` 全绿；文档书第 0 章升 v1.4（整体进度 99.2%，图来源 20%）
+
+### 图来源 G2 管线原型（✅ 完成，2026-08-17，无头 Chrome 程序化复核通过）
+- [x] `GraphSourceView.vue` 图来源入口页：三条路线卡片（引擎分析 主干 / 大模型分析 增强 / 人工创建 兜底）+ 6 步流程条
+- [x] 完整状态机：entry → scanning（扫描动画 1.5s）→ draft / llm / manual，统一复位 resetAll
+- [x] 引擎草稿展示：8 节点 / 12 边（DATA_FLOW）+ 候选单据清单 6 项（挂号单/收费单/退费申请单/结算单/支付流水/处方明细，置信度 95/91/84/76/61/53%，低置信度徽标）+ 图例 + GraphCanvas 复用
+- [x] 主动分流：草稿够用→人工校正 / 加大模型细化 / 作废重来；加大模型后 14 节点 / 20 边 + 5 类补全清单，**可回退纯引擎草稿**；作废回入口
+- [x] 统一人工校正清单（5 项）+ 确认生成准底图（toast + 1.8s 自动复位）；原则「主动权在人」
+- [x] 路由 `/graph-source` + SideNav 图来源入口；`npm run build` 全绿
+- [x] 无头 Chrome 程序化复核全流程：入口 3 卡 + 激活态 → 引擎草稿 8/12+6 候选 → 加大模型 14/20+5 补全 → 回退 8/12 → 作废回入口 → 再引擎 → 草稿够用→人工校正 → 确认准底图 toast + 复位 ✓
+
 ### 文档
 - [x] 项目文档书 v1.3（M4 前端增强 + 图来源设计定稿）+ config_version 主键修正
+- [x] 项目文档书 v1.4（图来源 G1 三层视图定型）
+- [x] 项目文档书 v1.5（图来源 G2 管线原型，整体进度 99.4%，图来源 40%）
+
+### 图来源 G3 引擎最小可行版（进行中，2026-08-17 晚间打包）
+- **后端 G3a-G3d ✅ 完成**：
+  - `backend/src/main/resources/engine/his_demo_schema.sql`：HIS 演示库 6 表（reg_order / fee_order / refund_apply / settle_bill / pay_record / prescription_detail）
+  - `backend/src/main/java/com/datalink/platform/engine/`（9 文件）：DTOs + EngineAnalyzeService/Impl（5 信号打分 + 单号前缀归属判定 + H2 会话内部表 META_TABLES 过滤）+ AnalyzeController（GET /api/analyze）
+  - `DemoBizDbInitializer`（`@Order(10)` ApplicationRunner，SQL 拆句改用「剥注释行→行尾 `;` 切」避免头注释吞块）+ `DemoConnectorSeeder`（`@Order(20)`，运行时 AesUtil 加密密码，避免迁移硬编码密文）
+  - SecurityConfig 放行 `/api/analyze/**` GET authenticated
+  - `EngineAnalyzeServiceTest` 6/6 通过；后端测试基线 **20 类全绿**
+  - 置信度实测回填（60~85 区间）：fee_order 85 / reg_order 75 / refund_apply 65 / settle_bill 60 / pay_record 60 / prescription_detail 40
+- **前端 G3e 半途**：
+  - `frontend/src/types/index.ts` 已加 `EngineCandidate / EngineFlow / EngineDraft`
+  - `frontend/src/api/index.ts` import 已改但 `fetchEngineAnalyze` 函数**未追加**（末尾 line 355 是 fetchOpenApiInfo）
+  - `frontend/src/views/GraphSourceView.vue` **未动**（仍为 G2 假数据）
+- **明日续接手头清单**（关键）：
+  1. `api/index.ts` 末尾追加 `export async function fetchEngineAnalyze(connectorId: string | number): Promise<EngineDraft>`
+  2. `GraphSourceView.vue` 改 script setup：导入 `fetchEngineAnalyze` + `DataSourceConnector`；新增 `engineDraft ref | loading ref | connectorId ref | error ref`；启动时自动选第一个 DB 连接器 + 调 analyze；保留假数据兜底（异常时回退 ENGINE_CANDIDATES / ENGINE_NODES / ENGINE_EDGES）
+  3. `npm run build` 全绿 + CDP 复核数字
+  4. 第 0 章升到 v1.6 + 15.3/15.10 + HANDOFF 同步
 
 **远程仓库历史**（已推送，最新 10 条）：
 ```
@@ -183,9 +223,9 @@ M0~M4 全部里程碑（含 RBAC、M3 补充、M4 前端增强）均已交付并
 
 **图来源 G1~G5**（设计已定稿，按顺序推进）：
 
-1. **G1 三层视图定型**：数据流/业务流/融合三视图的数据模型 + 前端投影（按视图过滤/分组节点）
-2. **G2 图来源管线原型**：前端交互原型——引擎出草稿 → 用户选择「够用/加大模型/作废重来」
-3. **G3 引擎最小可行版**：连库扫描 + 单据模式库识别，实测置信度数字回填设计
+1. **✅ G1 三层视图定型**（2026-08-17 完成）：数据流/业务流/融合三视图的前端投影（GraphView 加切换 tabs + layerView 过滤 + 图例收窄），无头 Chrome 复核三层渲染通过（融合 18 节点/20 边 · 数据流 6/2 · 业务流 12/10）
+2. **✅ G2 图来源管线原型**（2026-08-17 完成）：前端交互原型——入口三条路线 → 引擎草稿 → 用户主动选择「够用/加大模型/作废重来」→ 统一人工校正 → 准底图（可回退，主动权在人）
+3. **G3 引擎最小可行版**：连库扫描 + 单据模式库识别，实测置信度数字回填设计（当前进行中）
 4. **G4 大模型接入层**：可插拔模型层（DeepSeek/通义/Claude/GPT 等），至少一个供应商验证
 5. **G5 校正闭环**：校正记录留存 + 模式库沉淀（越校越准）
 
@@ -204,6 +244,6 @@ M0~M4 全部里程碑（含 RBAC、M3 补充、M4 前端增强）均已交付并
 
 ## 八、续接起点
 
-**当前任务 = 图来源 G1~G5 实现**。M0~M4 全部里程碑（含 RBAC、M3 补充、M4 前端增强）均已交付并推送到 GitHub（后端 76 测试全绿）。
-新会话第一步：读本文档 → `cd backend && mvn spring-boot:run` 起服务 → 浏览器打开 http://localhost:5173 登录（admin/admin123）→ 依次查看 **关系网画布**（2D/3D 切换、路线过滤）、**路径查询地铁图**、**3D 视图**、**大屏**。
-前端已完整可用：登录 + 关系网画布（排查/路径/影响面/2D⇄3D/路线过滤）+ 地铁图 + 3D 视图 + 大屏 + 看板 + 告警 + 检测点 + 版本 + 数据接入（DB+CMDB）+ 系统管理（运行信息/开放 API 卡）。
+**当前任务 = 图来源 G1~G5 实现（G1、G2 已完成，G3 进行中）**。M0~M4 全部里程碑（含 RBAC、M3 补充、M4 前端增强）均已交付并推送到 GitHub（后端 76 测试全绿）。
+新会话第一步：读本文档 → `cd backend && mvn spring-boot:run` 起服务 → 浏览器打开 http://localhost:5173 登录（admin/admin123）→ 依次查看 **图来源**（三条路线 + 引擎草稿 + 主动分流 + 人工校正，G2 原型）、**关系网画布**（2D/3D 切换、路线过滤、**三层视图切换 数据流/业务流/融合**）、**路径查询地铁图**、**3D 视图**、**大屏**。
+前端已完整可用：登录 + 图来源（G2 管线原型）+ 关系网画布（排查/路径/影响面/2D⇄3D/路线过滤/**三层视图**）+ 地铁图 + 3D 视图 + 大屏 + 看板 + 告警 + 检测点 + 版本 + 数据接入（DB+CMDB）+ 系统管理（运行信息/开放 API 卡）。

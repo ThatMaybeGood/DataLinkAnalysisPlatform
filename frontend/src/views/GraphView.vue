@@ -21,6 +21,21 @@ const selectedNode = ref<GraphNode | null>(null);
 const keyword = ref('');
 const focusNodeId = ref<string | null>(null);
 
+/* —— 三层视图（数据流 / 业务流 / 融合）· 前端投影，不改 Node 实体 —— */
+const viewLayer = ref<'data' | 'business' | 'fused'>('fused');
+/** 各层节点类型：数据流=表级血缘，业务流=系统级 */
+const layerNodeTypes: Record<string, string[]> = {
+  data: ['DATABASE', 'TABLE'],
+  business: ['SYSTEM', 'SUBSYSTEM', 'DEPARTMENT', 'ROLE', 'ACTION'],
+};
+/** 图例随当前层收窄 */
+const layerLegend: Record<string, string[]> = {
+  data: ['DATABASE'],
+  business: ['SYSTEM', 'DEPARTMENT', 'ACTION'],
+  fused: ['SYSTEM', 'DATABASE', 'DEPARTMENT', 'ACTION'],
+};
+const legendKeys = computed(() => layerLegend[viewLayer.value] ?? layerLegend.fused);
+
 /* —— 2D ⇄ 3D 切换 —— */
 const viewMode3d = ref(false);           // false=2D 关系网 / true=3D 星系
 const autoRotate3d = ref(true);          // 3D 自动旋转
@@ -54,10 +69,24 @@ const routesOfProcess = computed(() => routes.value.filter((r) => r.processId ==
 const activeRoute = computed(() => routes.value.find((r) => r.id === activeRouteId.value) ?? null);
 const canvasActiveRouteId = computed(() => (viewMode.value === 'route' ? activeRouteId.value : null));
 
+/** 按当前层过滤后的画布节点：融合视图不过滤 */
+const layerViewNodes = computed(() => {
+  if (viewLayer.value === 'fused') return nodes.value;
+  const types = new Set(layerNodeTypes[viewLayer.value]);
+  return nodes.value.filter((n) => types.has(n.nodeType));
+});
+
+/** 按当前层过滤后的画布边：只保留两端点都在该层内的边（避免悬空边） */
+const layerViewEdges = computed(() => {
+  if (viewLayer.value === 'fused') return edges.value;
+  const ids = new Set(layerViewNodes.value.map((n) => n.id));
+  return edges.value.filter((e) => ids.has(e.source) && ids.has(e.target));
+});
+
 /** 路线视图画布节点：只取当前路线站点（按 nodeIds 顺序），其余情况给完整节点 */
 const routeViewNodes = computed(() => {
-  if (viewMode.value !== 'route' || !activeRoute.value) return nodes.value;
-  const byId = new Map(nodes.value.map((n) => [n.id, n]));
+  if (viewMode.value !== 'route' || !activeRoute.value) return layerViewNodes.value;
+  const byId = new Map(layerViewNodes.value.map((n) => [n.id, n]));
   return activeRoute.value.nodeIds
     .map((id) => byId.get(id) ?? null)
     .filter((n): n is GraphNode => n !== null);
@@ -65,9 +94,9 @@ const routeViewNodes = computed(() => {
 
 /** 路线视图画布边：只取两个端点都在路线内的边（路线子图），其余情况给完整边 */
 const routeViewEdges = computed(() => {
-  if (viewMode.value !== 'route' || !activeRoute.value) return edges.value;
+  if (viewMode.value !== 'route' || !activeRoute.value) return layerViewEdges.value;
   const set = new Set(activeRoute.value.nodeIds);
-  return edges.value.filter((e) => set.has(e.source) && set.has(e.target));
+  return layerViewEdges.value.filter((e) => set.has(e.source) && set.has(e.target));
 });
 
 function selectProcess(id: string) {
@@ -302,6 +331,22 @@ onBeforeUnmount(() => clearPathTimer());
           >全路网</button>
         </div>
 
+        <!-- 三层视图切换（数据流 / 业务流 / 融合） -->
+        <div class="layer-switch">
+          <button
+            class="layer-switch__btn" :class="{ 'layer-switch__btn--active': viewLayer === 'data' }"
+            title="表级血缘：数据库/表 + 数据流" @click="viewLayer = 'data'"
+          >数据流</button>
+          <button
+            class="layer-switch__btn" :class="{ 'layer-switch__btn--active': viewLayer === 'business' }"
+            title="系统级：系统/部门/角色/动作 + API/订阅/审批" @click="viewLayer = 'business'"
+          >业务流</button>
+          <button
+            class="layer-switch__btn" :class="{ 'layer-switch__btn--active': viewLayer === 'fused' }"
+            title="全部节点与关系" @click="viewLayer = 'fused'"
+          >融合</button>
+        </div>
+
         <!-- 2D ⇄ 3D 切换 -->
         <div class="view-switch">
           <button
@@ -388,7 +433,7 @@ onBeforeUnmount(() => clearPathTimer());
       <Graph3DCanvas
         v-if="viewMode3d"
         ref="canvas3dRef"
-        :nodes="nodes" :edges="edges" :routes="routes"
+        :nodes="layerViewNodes" :edges="layerViewEdges" :routes="routes"
         :active-route-id="canvasActiveRouteId"
         :focus-node-id="focusNodeId"
         :auto-rotate="autoRotate3d"
@@ -406,8 +451,8 @@ onBeforeUnmount(() => clearPathTimer());
       <!-- 图例 -->
       <div class="legend">
         <div class="legend-title">图例</div>
-        <div class="legend-item" v-for="(label, key) in nodeTypeLegend" :key="key">
-          <span class="legend-dot" :style="{ background: colorOf[key] }" />{{ label }}
+        <div class="legend-item" v-for="key in legendKeys" :key="key">
+          <span class="legend-dot" :style="{ background: colorOf[key] }" />{{ nodeTypeLegend[key] }}
         </div>
         <div class="legend-divider" />
         <div class="legend-item"><span class="legend-ring legend-ring--warn" />异常</div>
@@ -530,9 +575,26 @@ onBeforeUnmount(() => clearPathTimer());
 .route-chip--active .chip-tag { background: rgba(255,255,255,.22); color: #fff; }
 .route-chip--active .chip-tag--alt { background: rgba(255,255,255,.22); color: #fff; }
 
+/* —— 三层视图分段切换（数据流 / 业务流 / 融合） —— */
+.layer-switch {
+  display: inline-flex; align-items: center; margin-left: auto;
+  border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
+  background: var(--surface-2); flex-shrink: 0;
+}
+.layer-switch__btn {
+  height: 28px; padding: 0 12px; border: none; border-radius: 0;
+  background: transparent; color: var(--fg-muted); font-size: 12.5px;
+  cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+  transition: all .15s; white-space: nowrap;
+}
+.layer-switch__btn + .layer-switch__btn { border-left: 1px solid var(--border); }
+.layer-switch__btn:hover { color: var(--accent); background: var(--surface-3); }
+.layer-switch__btn--active { background: var(--accent); color: #fff; font-weight: 500; }
+.layer-switch__btn--active:hover { background: var(--accent-hover); color: #fff; }
+
 /* —— 2D ⇄ 3D 分段切换 —— */
 .view-switch {
-  display: inline-flex; align-items: center; margin-left: auto;
+  display: inline-flex; align-items: center;
   border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
   background: var(--surface-2); flex-shrink: 0;
 }

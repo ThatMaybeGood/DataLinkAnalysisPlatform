@@ -11,6 +11,7 @@ const openCount = computed(() => mockAlerts.filter((a) => a.status === 'OPEN').l
 const menus = [
   { path: '/', label: '工作台', icon: 'activity' },
   { path: '/graph', label: '关系网', icon: 'flow' },
+  { path: '/graph-source', label: '图来源', icon: 'target' },
   { path: '/3d', label: '3D 视图', icon: 'box' },
   { path: '/processes', label: '流程列表', icon: 'process' },
   { path: '/data-sources', label: '数据接入', icon: 'database' },

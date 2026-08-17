@@ -237,3 +237,30 @@ export interface LoginResult {
   displayName: string;                 // 显示名
   roles: string[];                     // 角色集合
 }
+
+/** 引擎识别候选单据 */
+export interface EngineCandidate {
+  table: string;
+  name: string;
+  confidence: number;                  // 0~100，命中设计区间 60~85（主表）
+  marks: string[];                     // 主键/单号/状态/时间/引用/主子表/单号格式
+  low?: boolean;                       // confidence < 70 为低置信
+  statusValues?: string[];
+}
+
+/** 引擎分析流程模板（数据方向 provider→consumer） */
+export interface EngineFlow {
+  name: string;                        // 业务名用 → 连接的链，如「挂号单→收费单」
+  nodeIds: string[];
+  tableNames: string[];
+}
+
+/** 引擎分析返回草稿（对应后端 EngineDraftVO） */
+export interface EngineDraft {
+  database: string;
+  candidates: EngineCandidate[];       // 按置信度降序
+  draftNodes: GraphNode[];             // 库节点 + 表节点（id 形如 db-xxx / t-xxx）
+  draftEdges: GraphEdge[];             // 库→表 承载边 + 引用方向 DATA_FLOW 边
+  flows: EngineFlow[];                 // 流程模板
+  message?: string;
+}

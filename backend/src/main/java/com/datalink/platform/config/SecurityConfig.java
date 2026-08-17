@@ -46,6 +46,8 @@ public class SecurityConfig {
                                 "/api/open/**").permitAll()
                         // CORS 预检
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        // 图来源引擎分析：登录即可（只读扫描已启用连接器）
+                        .requestMatchers(HttpMethod.GET, "/api/analyze/**").authenticated()
                         // 建模/数据池写操作：仅 ADMIN / MODELER
                         .requestMatchers(HttpMethod.POST, "/api/nodes", "/api/processes", "/api/routes", "/api/relations", "/api/edges", "/api/connectors").hasAnyRole("ADMIN", "MODELER")
                         .requestMatchers(HttpMethod.PUT, "/api/nodes/**", "/api/processes/**", "/api/routes/**", "/api/connectors/**").hasAnyRole("ADMIN", "MODELER")

@@ -9,7 +9,7 @@
 #   SPRING_PROFILES_ACTIVE=mysql DB_URL=jdbc:mysql://... ./run.sh
 # ============================================================
 server:
-  port: 8080
+  port: 28080
 
 spring:
   application:

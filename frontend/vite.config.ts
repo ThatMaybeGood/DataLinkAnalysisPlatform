@@ -14,9 +14,9 @@ export default defineConfig({
     port: 5173,
     host: true,
     proxy: {
-      // 开发环境代理到后端（Spring Boot，默认 8080）
+      // 开发环境代理到后端（Spring Boot，本机默认 28080，与 backend/application.yml 对齐）
       '/api': {
-        target: 'http://localhost:8080',
+        target: 'http://localhost:28080',
         changeOrigin: true,
       },
     },

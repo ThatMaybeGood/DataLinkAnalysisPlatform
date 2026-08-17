@@ -16,6 +16,7 @@ const router = createRouter({
       children: [
         { path: '', name: 'dashboard', component: () => import('@/views/DashboardView.vue'), meta: { title: '工作台' } },
         { path: 'graph', name: 'graph', component: () => import('@/views/GraphView.vue'), meta: { title: '关系网' } },
+        { path: 'graph-source', name: 'graph-source', component: () => import('@/views/GraphSourceView.vue'), meta: { title: '图来源' } },
         { path: '3d', name: '3d', component: () => import('@/views/Graph3DView.vue'), meta: { title: '3D 视图' } },
         { path: 'processes', name: 'processes', component: () => import('@/views/ProcessListView.vue'), meta: { title: '流程列表' } },
         { path: 'data-sources', name: 'data-sources', component: () => import('@/views/DataSourceView.vue'), meta: { title: '数据接入' } },
