@@ -74,7 +74,7 @@ frontend/src/views/GraphSourceView.vue  # 删 LLM_NODES/LLM_EDGES/LLM_REFINEMENT
 | 大模型配置 | `datalink.llm.*`；环境变量 LLM_API_KEY/LLM_BASE_URL/LLM_MODEL 切换供应商 |
 | 后端端口 | 28080；前端 vite 5173（代理 /api→28080） |
 | Chrome 调试端口 | 9223（HeadlessChrome，CDP 复核用） |
-| 最新远程 commit | c2ff7e1（**G4 尚未提交**） |
+| 最新远程 commit | 86b0b4d（G4 ✅ 已推送） |
 
 ## 5. 新会话起手命令（复制粘贴即用）
 
