@@ -51,3 +51,6 @@ backend/data/
 # vue-tsc -b 生成的配置产物
 vite.config.js
 vite.config.d.ts
+
+# Claude Code 工作目录配置（不提交）
+.claude/

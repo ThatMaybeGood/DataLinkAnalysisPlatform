@@ -100,6 +100,29 @@
 - `frontend/src/api/index.ts`：**🔄 半成品** — import 已加 `EngineDraft`，但 `fetchEngineAnalyze` 函数**未追加**（上次 Edit 失败）；末尾是 `fetchOpenApiInfo`（line 355）
 - `frontend/src/views/GraphSourceView.vue`：**❌ 未动**（仍为 G2 纯假数据版本）
 
+## 图来源 G3 引擎最小可行版（完成，2026-08-18，复核全流程真实数据）
+
+### G3e 前端接线（2026-08-18 完成）
+- `frontend/src/api/index.ts`：末尾追加 `fetchEngineAnalyze(connectorId: string): Promise<EngineDraft>`（`GET /api/analyze?connectorId=...`）
+- `frontend/src/views/GraphSourceView.vue` 改动：
+  - import `EngineCandidate/EngineDraft` 类型 + `fetchEngineAnalyze/fetchConnectors` API
+  - 新增响应式状态：`engineData`（EngineDraft | null）、`engineCandidates`（DraftCandidate[]）、`engineError`（string）、`engineConnectorName`（string）
+  - 新增 `acquireEngineDraft()`：取第一个 `enabled=1` 的 DB 连接器调 `fetchEngineAnalyze`；失败 `console.warn` + 兜底 `ENGINE_CANDIDATES_FALLBACK` + `engineError` 提示条
+  - `startRoute('engine')`：1.5s scanning 后进 draft，若 `engineData === null && engineCandidates.length === 0` 触发 `acquireEngineDraft()`
+  - `draftNodes/draftEdges` 优先用 `engineData`（无则兜底 G2 假数据）；候选清单用 `engineCandidates`；`draftSummary` 真实时显示 `扫描 {database} · N 候选单据`；`gs-canvas-meta` 真实时追加连接器名标签
+  - 模板加 `gs-left-warn` 错误提示条（引擎接口失败时显示 + 兜底说明）
+- `npm run build` 全绿（13.5s）
+
+### G3f 验证（2026-08-18 完成）
+- **后端重启**：旧进程无 G3 种子（连接器表空 → `未找到已启用的 DB 连接器` 兜底），新进程 `spring-boot:run` 让 `DemoBizDbInitializer`（`@Order(10)`）+ `DemoConnectorSeeder`（`@Order(20)`）运行，HIS 连接器 id=1 出现
+- **后端真实 API 核对**：`/api/analyze?connectorId=1` 返回 `database=datalink_demo` + 6 候选（85/75/65/60/60/40）+ 1 库节点 + 6 表节点 + 10 边 + 1 流程模板「挂号单→收费单→支付流水」
+- **CDP 程序化复核**（`.data/g3_engine_verify.py`，复用 g2 结构）：入口 → 扫描 → 引擎草稿（`engineDataLoaded=true`、`database=datalink_demo`、7 节点/10 边、6 候选 85/75/65/60/60/40、4 低置信徽标、1 流程模板）→ 加大模型 14/20 → 回退 7/10 → 作废回入口 → 再引擎 → 人工校正 5 项 → 确认 toast + 复位 ✓ 全链路真实数据、无残留
+
+### 关键踩坑（G3 完成新增）
+| 坑 | 根因 | 解法 |
+|---|---|---|
+| CDP 复核时引擎接口未触发，显示「未找到已启用的 DB 连接器」 | 旧后端进程（IntelliJ spring-boot:run）未跑 G3 种子 | 重启 `mvn spring-boot:run` 让 Order(10)/Order(20) 初始化器执行 |
+
 ## 图来源 G2 管线原型（2026-08-17 完成 + 复核）
 - **实现**：`frontend/src/views/GraphSourceView.vue`（独立页，无后端依赖，全假数据）+ 路由 `/graph-source` + SideNav「图来源」入口。
 - **状态机**：`stage: 'entry' | 'scanning' | 'draft' | 'llm' | 'manual'`，`routeKey: 'engine' | 'llm' | 'manual' | null`，`confirmedBaseGraph`，`toast`。入口三条路线 → 引擎/大模型路线经 1.5s scanning → draft/llm → 统一 manual → 确认准底图（toast + 1.8s 复位）。

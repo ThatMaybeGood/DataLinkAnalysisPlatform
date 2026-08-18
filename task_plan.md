@@ -4,7 +4,7 @@
 实现文档书第 15 章「图来源与自动/半自动分析」——三条路线（引擎/大模型/人工）+ 三层视图 + 校正闭环，按 G1→G5 顺序全部落地，并同步更新文档书第 0 章与 HANDOFF。
 
 ## 当前阶段
-阶段 G3：引擎最小可行版（后端完成，前端接线未完成）
+阶段 G4：大模型接入层（G3 已完成，G4 待开始）
 
 ## 各阶段
 
@@ -34,10 +34,10 @@
 - [x] /api/analyze 接口（GET，已登录即可访问，SecurityConfig 放行）
 - [x] 拿真实 H2 演示库实测，回填置信度；集成测试 6/6 通过；后端测试基线 20 全绿
 - [x] 前端 types 定义（EngineCandidate/Flow/Draft）
-- [ ] G3e 前端接线（api/index.ts 追加 `fetchEngineAnalyze`；GraphSourceView.vue 接入真实数据源 + 兜底假数据）
-- [ ] G3f 验证基线（npm run build 全绿 + CDP 复核草稿渲染数字一致）
-- [ ] G3g 文档同步（第 0 章 v1.6 / 15.3 / 15.10 / HANDOFF 已更新到此节点，明日收尾）
-- **状态：** in_progress（后端完成，前端接线未完成）
+- [x] G3e 前端接线（api/index.ts 追加 `fetchEngineAnalyze`；GraphSourceView.vue 接入真实数据源 + 兜底假数据）
+- [x] G3f 验证基线（npm run build 全绿 + CDP 复核草稿渲染数字一致：7 节点/10 边 + 6 候选 + 1 流程模板，全流程真实数据）
+- [x] G3g 文档同步（第 0 章 v1.6 / 15.3 / 15.10 / HANDOFF 已更新到此节点，明日收尾）
+- **状态：** complete ✅（2026-08-18）
 
 ### 阶段 G4：大模型接入层（后端）
 - [ ] ModelProvider 可插拔接口（DeepSeek/通义/Claude/GPT）
@@ -83,6 +83,7 @@
 | 草稿边方向反了 | 1 | 原 "同列名" 判定多表共享时方向混乱；改用编码号前缀匹配（`fee_no` → 表名 `fee_*`） |
 | buildFlows 方法头丢失导致编译失败 | 1 | linkReferences 重构时流程链代码嵌入末尾未抽方法；独立为 private buildFlows(List) |
 | frontend src/api/index.ts Edit 失败（File has not been read yet） | 1 | 编辑前未 Read；改用 append 到文件末尾 |
+| CDP 复核时引擎接口未触发，显示「未找到已启用的 DB 连接器」 | 1 | 旧后端进程（IntelliJ spring-boot:run）未跑 G3 种子；重启 `mvn spring-boot:run` 让 Order(10)/Order(20) 初始化器执行 |
 
 ## 备注
 - 每完成一个 G：更新文档书第 0 章（勾选/百分比/时间）+ HANDOFF，再进下一个 G

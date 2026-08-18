@@ -353,3 +353,14 @@ export async function fetchOpenApiInfo(): Promise<OpenApiInfo> {
   if (res.status === 403) throw new Error('仅管理员可查看');
   return unwrap<OpenApiInfo>(res);
 }
+
+// ============================================================
+// 图来源 · 引擎分析（G3）：GET /api/analyze?connectorId=
+// 返回 EngineDraftVO（草稿节点/边 + 候选单据 + 流程模板）
+// ============================================================
+
+/** 引擎分析：对指定 DB 连接器扫描单据模式，产出草稿（需登录） */
+export async function fetchEngineAnalyze(connectorId: string): Promise<EngineDraft> {
+  const res = await apiFetch(`/api/analyze?connectorId=${encodeURIComponent(connectorId)}`);
+  return unwrap<EngineDraft>(res);
+}

@@ -11,7 +11,8 @@
  * 原则：主动权在人不在系统——系统只清楚呈现草稿，不做自检/裁决。
  */
 import { computed, onBeforeUnmount, ref } from 'vue';
-import type { GraphEdge, GraphNode } from '@/types';
+import type { EngineCandidate, EngineDraft, GraphEdge, GraphNode } from '@/types';
+import { fetchEngineAnalyze, fetchConnectors } from '@/api';
 import GraphCanvas from '@/components/GraphCanvas.vue';
 import Icon from '@/components/Icon.vue';
 
@@ -52,7 +53,7 @@ const ROUTES_META = [
   },
 ];
 
-/* —— 引擎草稿：假数据（模拟扫描「门诊收费库」识别出的单据/流程骨架） —— */
+/* —— 引擎草稿：兜底假数据（G3 真实接口不可用时模拟扫描「门诊收费库」） —— */
 const ENGINE_NODES: GraphNode[] = [
   { id: 'db1', name: '门诊收费库', code: 'ORD', nodeType: 'DATABASE', level: 'L1', status: 'ACTIVE', checkpoints: [] },
   { id: 't1', name: '挂号单表', code: 'reg_order', nodeType: 'TABLE', level: 'L2', status: 'ACTIVE', checkpoints: [] },
@@ -111,7 +112,8 @@ interface DraftCandidate {
   low?: boolean;
 }
 
-const ENGINE_CANDIDATES: DraftCandidate[] = [
+/* 兜底候选清单（真实接口不可用时展示，G2 原型数据） */
+const ENGINE_CANDIDATES_FALLBACK: DraftCandidate[] = [
   { name: '挂号单', table: 'reg_order', confidence: 95, marks: ['主键', '单号', '状态', '时间', '主子表'] },
   { name: '收费单', table: 'fee_order', confidence: 91, marks: ['主键', '单号', '状态', '时间', '主子表', '引用'] },
   { name: '退费申请单', table: 'refund_apply', confidence: 84, marks: ['单号', '状态', '引用'] },
@@ -119,6 +121,12 @@ const ENGINE_CANDIDATES: DraftCandidate[] = [
   { name: '支付流水', table: 'pay_record', confidence: 61, marks: ['时间', '引用'], low: true },
   { name: '处方明细', table: 'prescription_detail', confidence: 53, marks: ['主子表'], low: true },
 ];
+
+/* —— G3 真实引擎分析草稿（acquireEngineDraft 赋值；失败回退兜底） —— */
+const engineData = ref<EngineDraft | null>(null);
+const engineCandidates = ref<DraftCandidate[]>([]);
+const engineError = ref('');
+const engineConnectorName = ref('');
 
 /* —— 大模型语义补全清单 —— */
 interface LlmRefinement {
@@ -157,6 +165,29 @@ const SCANNING_TEXT: Record<RouteKey, string> = {
   manual: '准备人工创建画布…',
 };
 
+/**
+ * 引擎分析（G3 真实数据接入）：
+ * 优先取已启用的 DB 连接器调用 /api/analyze；失败或未配置连接器时
+ * 回退到 G2 兜底假数据（ENGINE_NODES/ENGINE_CANDIDATES_FALLBACK）。
+ */
+async function acquireEngineDraft() {
+  engineError.value = '';
+  try {
+    const { records } = await fetchConnectors(1, 50);
+    const dbConn = records.find((c) => c.connectorType === 'DB' && c.enabled === 1);
+    if (!dbConn) throw new Error('未找到已启用的 DB 连接器，使用演示数据展示');
+    const draft = await fetchEngineAnalyze(dbConn.id);
+    engineData.value = draft;
+    engineCandidates.value = (draft.candidates ?? []) as DraftCandidate[];
+    engineConnectorName.value = dbConn.name;
+  } catch (err) {
+    console.warn('[G3] 引擎分析调用失败，回退演示数据：', err);
+    engineData.value = null;
+    engineCandidates.value = ENGINE_CANDIDATES_FALLBACK;
+    engineError.value = err instanceof Error ? err.message : String(err);
+  }
+}
+
 function startRoute(key: RouteKey) {
   routeKey.value = key;
   confirmedBaseGraph.value = false;
@@ -169,7 +200,14 @@ function startRoute(key: RouteKey) {
   scanningText.value = SCANNING_TEXT[key];
   if (scanTimer !== null) window.clearTimeout(scanTimer);
   scanTimer = window.setTimeout(() => {
-    stage.value = key === 'llm' ? 'llm' : 'draft';
+    if (key === 'llm') {
+      stage.value = 'llm';
+      return;
+    }
+    stage.value = 'draft';
+    if (engineData.value === null && engineCandidates.value.length === 0) {
+      void acquireEngineDraft();
+    }
   }, 1500);
 }
 
@@ -199,6 +237,7 @@ function resetAll() {
   stage.value = 'entry';
   routeKey.value = null;
   confirmedBaseGraph.value = false;
+  engineError.value = '';
 }
 
 /** 人工校正拍板：确认准底图 */
@@ -216,17 +255,25 @@ onBeforeUnmount(() => {
 
 /* —— 派生数据 —— */
 const isDraftStage = computed(() => stage.value === 'draft' || stage.value === 'llm');
-const draftNodes = computed(() => (stage.value === 'llm' ? LLM_NODES : ENGINE_NODES));
-const draftEdges = computed(() => (stage.value === 'llm' ? LLM_EDGES : ENGINE_EDGES));
+/** 引擎草稿节点：优先真实接口草稿，否则 G2 兜底假数据 */
+const draftNodes = computed<GraphNode[]>(() => {
+  if (stage.value === 'llm') return LLM_NODES;
+  return engineData.value?.draftNodes?.length ? engineData.value.draftNodes : ENGINE_NODES;
+});
+/** 引擎草稿边 */
+const draftEdges = computed<GraphEdge[]>(() => {
+  if (stage.value === 'llm') return LLM_EDGES;
+  return engineData.value?.draftEdges?.length ? engineData.value.draftEdges : ENGINE_EDGES;
+});
 const isLlmRefined = computed(() => stage.value === 'llm');
 const isManualRoute = computed(() => routeKey.value === 'manual');
 const draftTitle = computed(() => (isLlmRefined.value ? '大模型细化草稿' : '引擎分析草稿'));
 const draftSummary = computed(() => {
   const n = draftNodes.value.length;
   const e = draftEdges.value.length;
-  return isLlmRefined.value
-    ? `引擎骨架 + 大模型语义补全 · ${n} 节点 / ${e} 关系`
-    : `引擎扫描 5 张表识别候选单据 · ${n} 节点 / ${e} 关系`;
+  if (isLlmRefined.value) return `引擎骨架 + 大模型语义补全 · ${n} 节点 / ${e} 关系`;
+  const src = engineData.value ? `扫描 ${engineData.value.database} · ${engineCandidates.value.length} 候选单据` : '引擎扫描 5 张表识别候选单据';
+  return `${src} · ${n} 节点 / ${e} 关系`;
 });
 
 const steps = [
@@ -325,11 +372,14 @@ const manualTypeLabel: Record<string, string> = {
         <template v-if="!isLlmRefined">
           <div class="gs-left-header">
             <div class="gs-left-title">引擎扫描 · 候选单据</div>
-            <span class="tag tag--accent gs-left-count">{{ ENGINE_CANDIDATES.length }} 项</span>
+            <span class="tag tag--accent gs-left-count">{{ engineCandidates.length }} 项</span>
           </div>
           <div class="gs-left-sub">识别置信度（单号/状态/时间/引用链/主子表命中）</div>
+          <div v-if="engineError" class="gs-left-warn">
+            <Icon name="alert" :size="13" />{{ engineError }}（已回退演示数据）
+          </div>
           <div class="gs-cand-list">
-            <div v-for="c in ENGINE_CANDIDATES" :key="c.table" class="gs-cand">
+            <div v-for="c in engineCandidates" :key="c.table" class="gs-cand">
               <div class="gs-cand-row">
                 <span class="gs-cand-name">{{ c.name }}</span>
                 <span class="mono gs-cand-table">{{ c.table }}</span>
@@ -371,6 +421,7 @@ const manualTypeLabel: Record<string, string> = {
           <div class="gs-canvas-title">{{ draftTitle }}</div>
           <div class="gs-canvas-sub">{{ draftSummary }}</div>
           <div class="gs-canvas-meta">
+            <span v-if="engineConnectorName && !isLlmRefined" class="tag tag--plain">{{ engineConnectorName }}</span>
             <span class="tag" :class="isLlmRefined ? 'tag--info' : 'tag--accent'">
               {{ isLlmRefined ? '引擎 + 大模型' : '纯引擎' }}
             </span>
@@ -571,6 +622,12 @@ const manualTypeLabel: Record<string, string> = {
 .gs-left-count { flex-shrink: 0; }
 .gs-left-sub { font-size: 11.5px; color: var(--fg-faint); margin: 6px 0 12px; }
 
+.gs-left-warn {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11.5px; color: var(--warning, #f59e0b);
+  background: rgba(245, 158, 11, .08); border: 1px solid rgba(245, 158, 11, .25);
+  border-radius: var(--radius-sm); padding: 6px 9px; margin-bottom: 10px; line-height: 1.5;
+}
 .gs-cand-list { display: flex; flex-direction: column; gap: 12px; }
 .gs-cand { padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); }
 .gs-cand-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }

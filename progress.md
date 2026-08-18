@@ -64,9 +64,9 @@
   - docs/PROJECT-HANDOFF.md（G2 完成同步）
 
 ### 阶段 G3：引擎最小可行版
-- **状态：** in_progress（后端 G3a~G3d 完成 + 前端类型定义完成，前端接线未完成）
-- **开始时间：** 2026-08-17 · **本段记录时间：** 2026-08-17 18:15
-- 已完成：
+- **状态：** complete ✅
+- **开始时间：** 2026-08-17 · **完成时间：** 2026-08-18
+- 已完成（G3a~G3d，2026-08-17）：
   - G3a 演示业务库 schema（engine/his_demo_schema.sql，6 表）
   - G3b engine 包（DTO/Service/Controller + 5 信号识别 + 单号前缀归属判定 + H2 内部表过滤）
   - G3c DemoBizDbInitializer（`@Order(10)`）+ DemoConnectorSeeder（`@Order(20)`）+ SecurityConfig 放开 /api/analyze
@@ -75,8 +75,22 @@
   - 前端 types/index.ts 补 EngineCandidate/Flow/Draft 类型
 - 中途踩坑（已修复）：DemoBizDbInitializer SQL 拆句（头注释吞块）+ DATABASE_TO_LOWER schema 名 + H2 会话内部表过滤 + 草稿边方向反转 + buildFlows 方法头丢失
 - 置信度实测回填（6 候选）：fee_order 85 / reg_order 75 / refund_apply 65 / settle_bill 60 / pay_record 60 / prescription_detail 40
-- **遗留（明日接续）**：
-  - G3e 前端接线（api/index.ts 追加 `fetchEngineAnalyze` + GraphSourceView.vue 接入真实数据源 + 兜底假数据）
+- **G3e 前端接线完成（2026-08-18）**：
+  - `api/index.ts` 末尾追加 `fetchEngineAnalyze(connectorId: string): Promise<EngineDraft>`
+  - `GraphSourceView.vue`：导入类型+API；新增 `engineData/engineCandidates/engineError/engineConnectorName` 状态；`acquireEngineDraft()` 取第一个 enabled DB 连接器调 analyze，失败兜底假数据+错误条；`startRoute('engine')` 扫描后触发；`draftNodes/draftEdges` 优先用 `engineData`（无则兜底）；候选清单用 `engineCandidates`；`draftSummary` 真实时显示 `扫描 {database}`；`gs-canvas-meta` 真实时追加连接器名标签；模板加 `gs-left-warn` 错误提示条
+- **G3f 验证完成（2026-08-18）**：
+  - `npm run build` 全绿（13.54s）
+  - **后端重启**：旧 IntelliJ spring-boot:run 进程无 G3 种子（连接器表空 → 兜底假数据），新进程让 Order(10)/Order(20) 初始化器执行，HIS 连接器 id=1 出现
+  - **后端真实 API 核对**：`/api/analyze?connectorId=1` → `database=datalink_demo` + 6 候选（85/75/65/60/60/40）+ 1 库节点 + 6 表节点 + 10 边 + 1 流程模板「挂号单→收费单→支付流水」
+  - **无头 Chrome 程序化复核全流程真实数据通过**（`.data/g3_engine_verify.py`，复用 g2 结构）：入口 → 扫描 → 引擎草稿（`engineDataLoaded=true`、7 节点/10 边、6 候选、4 低置信徽标、1 流程模板）→ 加大模型 14/20 → 回退 7/10 → 作废回入口 → 再引擎 → 人工校正 5 项 → 确认 toast + 复位 ✓ 无残留
+- **G3g 文档同步完成（2026-08-18）**：文档书第 0 章升 v1.6（版本表 + 0.2 树 G3 ✅ + 0.3 里程碑图来源 60% + 整体 99.6% + 功能状态 + 时间线）、HANDOFF 同步（顶部 v1.6 + G3 完成小节 + 下一步 + 续接起点 + 远程仓库历史）、findings.md / task_plan.md / progress.md 同步
+- 创建/修改的文件（2026-08-18）：
+  - frontend/src/api/index.ts（追加 fetchEngineAnalyze）
+  - frontend/src/views/GraphSourceView.vue（G3e 接线：真实数据源 + 兜底假数据 + 错误条）
+  - .data/g3_engine_verify.py（G3 复核脚本，新建）
+  - docs/数据关联与业务流程监控分析平台-项目文档书-v1.0.md（第 0 章 v1.6）
+  - docs/PROJECT-HANDOFF.md（G3 完成同步）
+  - findings.md / task_plan.md / progress.md（G3 完成同步）
   - G3f npm run build 全绿 + CDP 复核草稿渲染数字一致
   - G3g 文档同步（第 0 章 v1.6 / 15.3 / 15.10 / HANDOFF / task_plan/findings/progress 已更新到此节点）
 
