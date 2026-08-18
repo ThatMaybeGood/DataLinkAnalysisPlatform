@@ -95,7 +95,20 @@
   - G3g 文档同步（第 0 章 v1.6 / 15.3 / 15.10 / HANDOFF / task_plan/findings/progress 已更新到此节点）
 
 ### 阶段 G4：大模型接入层
-- **状态：** pending
+- **状态：** complete ✅（真实供应商验证待用户提供 API key 后补）
+- **开始时间：** 2026-08-18 · **完成时间：** 2026-08-18
+- 执行的操作：
+  - 基线：后端 `mvn test` 20 类全绿 + 前端 `npm run build` 全绿后动手
+  - **子代理A（llm 包）**：`llm/config/LlmProperties`（`datalink.llm.*`：base-url/api-key/model/timeout-ms/max-tokens/temperature，全走 `${ENV:default}` 环境变量）+ `LlmConfig`（`@ConditionalOnExpression` 有 key 装配 OpenAI 实现 / `@ConditionalOnMissingBean` 装配 Noop）+ `llm/dto`（RefinementItem/LlmRefineRequest/LlmRefineResult）+ `llm/provider`（ModelProvider 接口 `name()/available()/refine()` + NoopModelProvider + OpenAiCompatibleModelProvider：RestClient POST `/chat/completions`、`response_format=json_object`、```json 围栏剥离、解析失败/超时降级 error refinement 绝不抛异常、日志不打 key）
+  - **子代理B（refine 接口）**：`engine/dto`（RefineRequest{connectorId} + RefineResultVO{base/addedNodes/addedEdges/renameMap/refinements/provider/message}）+ `EngineAnalyzeService.refine(connectorId)`（复跑引擎取 base → ModelProvider.refine → 组装 VO，provider 异常降级 error 不抛出）+ `AnalyzeController` 加 `POST /api/analyze/refine` + SecurityConfig 加 POST `/api/analyze/**` authenticated
+  - **前端（主会话）**：`types/index.ts` 加 `RefinementItem/EngineRefineResult`；`api/index.ts` 加 `postEngineRefine`；`GraphSourceView.vue` 删 LLM_NODES/LLM_EDGES/LLM_REFINEMENTS 假数据——细化草稿 = 引擎骨架应用 renameMap + addedNodes/addedEdges 合并（骨架引用即回退快照，revertToEngine 仅切 stage 即真回退）；Noop 时琥珀色提示条「未配置大模型 API Key」；refine 结果缓存（回退后再细化不重复调接口）；大模型路线直进真实接口（无连接器退 draft + 提示）；refine 按钮 loading 态
+  - **验证**：后端 24 测试类 94 用例全绿（新增 4 类：OpenAiCompatibleModelProviderTest 解析/降级 + ModelProviderWiringTest 无 key 装配 Noop + EngineRefineServiceTest 3 用例 + AnalyzeRefineControllerTest MockMvc）；`POST /api/analyze/refine {connectorId:1}` 实测 code=200、provider=noop、base 与 GET /api/analyze 一致（datalink_demo 7 节点/10 边/6 候选）、refinements 1 条 noop；无头 Chrome 复核（`.data/g4_llm_verify.py`）：引擎草稿 7/10 → 加大模型（provider=noop + 提示条 + 草稿不变 + 徽标「引擎原稿（Noop）」）→ 回退 → 作废 → 大模型路线直进 → 人工校正 5 项 → 确认复位 ✓ 全链路真实数据无假数据残留
+  - 文档书第 0 章升 v1.7 + HANDOFF + 三件套同步
+- 创建/修改的文件：
+  - backend：`llm/` 包 9 文件（新建）、`engine/dto/RefineRequest.java` + `RefineResultVO.java`（新建）、`EngineAnalyzeService(+Impl)` / `AnalyzeController` / `SecurityConfig` / `application.yml`（修改）、测试 4 类（新建）
+  - frontend：`src/types/index.ts`、`src/api/index.ts`、`src/views/GraphSourceView.vue`（修改）
+  - `.data/g4_llm_verify.py`（G4 复核脚本，新建）
+  - docs 文档书（第 0 章 v1.7 + 15.10 G4 ✅）+ HANDOFF + 三件套
 
 ### 阶段 G5：校正闭环
 - **状态：** pending
@@ -124,11 +137,11 @@
 ## 五问重启检查
 | 问题 | 答案 |
 |------|------|
-| 我在哪里？ | 阶段 G3（引擎最小可行版，后端） |
-| 我要去哪里？ | G3 引擎 → G4 大模型 → G5 闭环 → 文档同步 + 推送 |
+| 我在哪里？ | 阶段 G5（校正闭环，后端）待开始——G4 大模型接入层已完成（真实供应商验证待 key） |
+| 我要去哪里？ | G5 闭环 → 文档同步 + 推送 |
 | 目标是什么？ | 图来源 G1~G5 全部落地 + 文档进度同步 |
-| 我学到了什么？ | 见 findings.md（G1/G2 复核数字已更新） |
-| 我做了什么？ | G1 三层视图 + G2 管线原型均完成：无头 Chrome 复核通过 + 文档第 0 章 v1.5 |
+| 我学到了什么？ | 见 findings.md（G4 llm 包契约 + Noop 兜底模式 + CDP 复核数字已更新） |
+| 我做了什么？ | G1~G4 完成：三层视图 + 管线原型 + 引擎最小可行版 + 大模型接入层（可插拔 Provider + refine 接口 + 前端真实接线），后端 24 测试类 94 用例全绿 + 文档第 0 章 v1.7 |
 
 ---
 *每个阶段完成后或遇到错误时更新此文件*

@@ -123,6 +123,48 @@
 |---|---|---|
 | CDP 复核时引擎接口未触发，显示「未找到已启用的 DB 连接器」 | 旧后端进程（IntelliJ spring-boot:run）未跑 G3 种子 | 重启 `mvn spring-boot:run` 让 Order(10)/Order(20) 初始化器执行 |
 
+## 图来源 G4 大模型接入层（完成，2026-08-18，Noop 路径全链路复核通过）
+
+### 后端 llm 包（可插拔 Provider）
+- `com.datalink.platform.llm` 新包：
+  - `provider/ModelProvider` 接口：`name() / available() / refine(LlmRefineRequest)`
+  - `provider/NoopModelProvider`：无 key 兜底——`available()=false`，refine 返回空增量 + `refinements=[{type:"noop", text:"未配置大模型 API Key，返回引擎原稿"}]` + `provider="noop"`
+  - `provider/OpenAiCompatibleModelProvider`：RestClient POST `{baseUrl}/chat/completions`（OpenAI chat 格式 + `response_format=json_object`）；`static parseContent(String, String)` 剥 ```json 围栏 → Jackson 解析 → addedNodes id 强制 `llm-` 前缀；**任何异常（HTTP/超时/JSON 非法/缺字段）降级为 `{type:"error"}` refinement，绝不抛异常**；日志禁打 api-key
+  - `config/LlmConfig`：`@ConditionalOnExpression("...StringUtils.hasText('${datalink.llm.api-key:}')")` 装配 OpenAI 实现（空串不算）；`@ConditionalOnMissingBean(ModelProvider.class)` 装配 Noop
+  - `config/LlmProperties`：`datalink.llm.*`（base-url 默认 `https://api.deepseek.com/v1` / api-key `${LLM_API_KEY:}` / model 默认 `deepseek-chat` / timeout-ms 30000 / max-tokens 2048 / temperature 0.2）
+- 切换供应商只需环境变量：`LLM_API_KEY` / `LLM_BASE_URL` / `LLM_MODEL`（DeepSeek/通义/Claude/GPT 均 OpenAI 兼容）
+
+### refine 细化接口
+- `POST /api/analyze/refine`（AnalyzeController，SecurityConfig 加 POST `/api/analyze/**` authenticated）
+- 请求 `RefineRequest{connectorId}`——**前端不回传草稿**，后端复跑引擎取 base（防篡改、职责单一；引擎只读内存计算成本可忽略）
+- 响应 `RefineResultVO`：`base`(EngineDraftVO 原样 = 前端回退快照） + `addedNodes/addedEdges`（llm- 前缀增量） + `renameMap` + `refinements`（rename/chain/party/relation/flow + noop/error） + `provider` + `message`
+- `EngineAnalyzeServiceImpl.refine()`：analyze 取 base → LlmRefineRequest → provider.refine → 组装；provider 抛异常 → log.error + 降级 `provider="error"`（base 仍返回）；null 集合防御为空集合
+
+### 前端接线（GraphSourceView.vue）
+- **删除** LLM_NODES / LLM_EDGES / LLM_REFINEMENTS 假数据常量；新增状态 `refineResult/refineLoading/refineError/engineConnectorId`
+- 细化草稿 = 引擎骨架 `applyRename`（renameMap 按 code/id/name 匹配）+ addedNodes/addedEdges 合并；骨架引用保留即天然回退快照，`revertToEngine()` 仅切 stage
+- `refineWithLlm()` async：已有 refineResult 直接切 stage（缓存不重复调）；否则 `postEngineRefine(engineConnectorId)` 成功 → stage='llm'，失败 → refineError 停留 draft
+- 大模型路线直进 `startLlmRoute()`：先确保引擎草稿 → 无连接器退 draft + 提示；有则 refine
+- Noop 提示：provider==='noop' 时左栏琥珀色 `gs-left-warn`「未配置大模型 API Key…」+ 徽标「引擎原稿（Noop）」+ summary「引擎原稿（未配置大模型）」
+- REFINE_TYPE_LABEL 映射：rename→改名 / chain→动作链 / party→参与方 / relation→关系 / flow→流程 / noop→兜底 / error→异常
+
+### 验证数字（2026-08-18）
+- 后端 **24 测试类 94 用例全绿**（新增 4 类：OpenAiCompatibleModelProviderTest 5 用例解析/围栏/降级/缺字段、ModelProviderWiringTest 无 key 装配 Noop、EngineRefineServiceTest 3 用例、AnalyzeRefineControllerTest MockMvc 2 用例）
+- 接口实测：`POST /api/analyze/refine {connectorId:1}` → code=200、provider=noop、base 与 GET /api/analyze 一致（datalink_demo 7 节点/10 边/6 候选）、refinements 1 条 noop
+- CDP 复核（`.data/g4_llm_verify.py`）：引擎草稿 7/10 → 加大模型（noop 提示条 + 1 条 noop refinement + 草稿不变 + 徽标「引擎原稿（Noop）」）→ 回退 7/10 → 作废清空 refineResult → 大模型路线直进 llm 态 → 人工校正 5 项 → 确认复位 ✓ 无假数据残留
+
+### 关键踩坑（G4 新增）
+| 坑 | 根因 | 解法 |
+|---|---|---|
+| CDP attach 后「Inspected target navigated or closed」 | attach 的既有页面在导航后会话失效 | `Target.createTarget` 新建 about:blank 页再 attach |
+| about:blank 上读 localStorage 报 SecurityError | 无 origin 页禁止 localStorage | 先导航 5173 → 登录写 token → 重新导航 |
+| Controller 测试「无 body → 4xx」断言失败 | GlobalExceptionHandler 兜底 Exception 统一 HTTP 200 + body.code=500 | 断言 `$.code != 200`（行为等价拒绝，不动全局处理器） |
+| `@ConditionalOnProperty` 无法区分「未配 key」与「key 为空串」 | matchIfMissing 对空串无效 | 改 `@ConditionalOnExpression` + `StringUtils.hasText` |
+
+### 待办（下次会话）
+- ⏳ 真实供应商验证：用户提供 key 后设 `LLM_API_KEY`/`LLM_BASE_URL`/`LLM_MODEL` 重启 → POST /api/analyze/refine 看 provider 非 noop + 五类 refinements 齐全 → 切换模型对比
+- G5 校正闭环：校正记录表 + 留存接口 + 模式库沉淀（最简版）
+
 ## 图来源 G2 管线原型（2026-08-17 完成 + 复核）
 - **实现**：`frontend/src/views/GraphSourceView.vue`（独立页，无后端依赖，全假数据）+ 路由 `/graph-source` + SideNav「图来源」入口。
 - **状态机**：`stage: 'entry' | 'scanning' | 'draft' | 'llm' | 'manual'`，`routeKey: 'engine' | 'llm' | 'manual' | null`，`confirmedBaseGraph`，`toast`。入口三条路线 → 引擎/大模型路线经 1.5s scanning → draft/llm → 统一 manual → 确认准底图（toast + 1.8s 复位）。

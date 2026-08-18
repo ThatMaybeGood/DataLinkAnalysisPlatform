@@ -8,7 +8,7 @@
 
 import type {
   AlertItem, CandidateNode, Checkpoint, ConnectorSavePayload, ConnectorTestResult, DashboardStats,
-  DataSourceConnector, EngineDraft, GraphEdge, GraphNode, HealthInfo, Instance,
+  DataSourceConnector, EngineDraft, EngineRefineResult, GraphEdge, GraphNode, HealthInfo, Instance,
   LoginResult, ProcessDef, Route, TableInfo, TablePreview, VersionRecord,
 } from '@/types';
 
@@ -363,4 +363,20 @@ export async function fetchOpenApiInfo(): Promise<OpenApiInfo> {
 export async function fetchEngineAnalyze(connectorId: string): Promise<EngineDraft> {
   const res = await apiFetch(`/api/analyze?connectorId=${encodeURIComponent(connectorId)}`);
   return unwrap<EngineDraft>(res);
+}
+
+// ============================================================
+// 图来源 · 大模型细化（G4）：POST /api/analyze/refine
+// 输入连接器 id（后端复跑引擎取草稿再调大模型），返回引擎骨架 + 细化增量；
+// 未配置大模型 API Key 时 provider='noop'，返回引擎原稿兜底。
+// ============================================================
+
+/** 大模型细化：引擎草稿 → 语义补全（需登录） */
+export async function postEngineRefine(connectorId: string): Promise<EngineRefineResult> {
+  const res = await apiFetch('/api/analyze/refine', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ connectorId: Number(connectorId) }),
+  });
+  return unwrap<EngineRefineResult>(res);
 }

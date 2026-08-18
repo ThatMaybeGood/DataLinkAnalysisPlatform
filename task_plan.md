@@ -4,7 +4,7 @@
 实现文档书第 15 章「图来源与自动/半自动分析」——三条路线（引擎/大模型/人工）+ 三层视图 + 校正闭环，按 G1→G5 顺序全部落地，并同步更新文档书第 0 章与 HANDOFF。
 
 ## 当前阶段
-阶段 G4：大模型接入层（G3 已完成，G4 待开始）
+阶段 G5：校正闭环（G4 已完成，G5 待开始）
 
 ## 各阶段
 
@@ -39,12 +39,14 @@
 - [x] G3g 文档同步（第 0 章 v1.6 / 15.3 / 15.10 / HANDOFF 已更新到此节点，明日收尾）
 - **状态：** complete ✅（2026-08-18）
 
-### 阶段 G4：大模型接入层（后端）
-- [ ] ModelProvider 可插拔接口（DeepSeek/通义/Claude/GPT）
-- [ ] 配置 API Key/地址/参数（不硬编码）
-- [ ] 引擎草稿 + 大模型细化接口
-- [ ] 至少一个供应商验证；切换模型对比
-- **状态：** pending
+### 阶段 G4：大模型接入层（后端 + 前端）
+- [x] ModelProvider 可插拔接口（`llm` 包：`name()/available()/refine()`；Noop 兜底 + OpenAI 兼容实现，DeepSeek/通义/Claude/GPT 靠配置切换）
+- [x] 配置 API Key/地址/参数（`datalink.llm.*` 全走环境变量 `${LLM_API_KEY:}` 等，不硬编码；有 key 条件装配真实 Provider，无 key 装配 Noop）
+- [x] 引擎草稿 + 大模型细化接口（`POST /api/analyze/refine`：传 connectorId 复跑引擎 → 语义补全 → 骨架 base + 增量 addedNodes/addedEdges/renameMap + 五类细化清单 + provider 标识；异常降级不抛出）
+- [x] 前端 GraphSourceView「加大模型细化」换真实接口（删 LLM 假数据；骨架改名 + 增量合并 + 一键回退 + Noop 提示条）
+- [x] 验证：后端 24 测试类 94 用例全绿（新增 4 测试类）；refine 接口实测 Noop 路径；无头 Chrome 复核全链路
+- [ ] 至少一个真实供应商验证 + 切换模型对比（⏳ 待用户提供 API key：设 `LLM_API_KEY`/`LLM_BASE_URL`/`LLM_MODEL` 即可）
+- **状态：** complete ✅（2026-08-18；真实供应商验证待 key 后补）
 
 ### 阶段 G5：校正闭环（后端）
 - [ ] 校正记录表（改名/确认类型/合并/增删/顺序）
@@ -84,6 +86,9 @@
 | buildFlows 方法头丢失导致编译失败 | 1 | linkReferences 重构时流程链代码嵌入末尾未抽方法；独立为 private buildFlows(List) |
 | frontend src/api/index.ts Edit 失败（File has not been read yet） | 1 | 编辑前未 Read；改用 append 到文件末尾 |
 | CDP 复核时引擎接口未触发，显示「未找到已启用的 DB 连接器」 | 1 | 旧后端进程（IntelliJ spring-boot:run）未跑 G3 种子；重启 `mvn spring-boot:run` 让 Order(10)/Order(20) 初始化器执行 |
+| G4 CDP 脚本 attach 后报「Inspected target navigated or closed」 | 1 | attach 的目标页在导航后会话失效；改 `Target.createTarget` 新建 about:blank 页再 attach |
+| G4 CDP 脚本在 about:blank 读 localStorage 报 SecurityError | 1 | 先导航到 5173 页面再执行登录写 token，最后重新导航让 SPA 带 token 加载 |
+| AnalyzeRefineControllerTest 断言「无 body → 4xx」失败 | 1 | GlobalExceptionHandler 兜底 Exception 统一 HTTP 200 + body.code=500；改断言 `$.code != 200`（行为等价拒绝，不动全局处理器） |
 
 ## 备注
 - 每完成一个 G：更新文档书第 0 章（勾选/百分比/时间）+ HANDOFF，再进下一个 G

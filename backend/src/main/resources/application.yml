@@ -53,6 +53,14 @@ datalink:
   openapi:
     # 开放 API Token（外部系统集成鉴权，请求头 X-API-Key 携带）；生产必须通过环境变量覆盖（DATALINK_OPENAPI_TOKEN）
     token: ${DATALINK_OPENAPI_TOKEN:datalink-openapi-dev-token-001}
+  llm:
+    # G4 大模型接入层（OpenAI 兼容协议，默认 DeepSeek）；生产必须通过环境变量覆盖（LLM_API_KEY）
+    base-url: ${LLM_BASE_URL:https://api.deepseek.com/v1}
+    api-key: ${LLM_API_KEY:}
+    model: ${LLM_MODEL:deepseek-chat}
+    timeout-ms: 30000
+    max-tokens: 2048
+    temperature: 0.2
 
 logging:
   level:

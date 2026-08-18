@@ -11,10 +11,16 @@ import com.datalink.platform.datasource.pool.ConnectionPoolRegistry;
 import com.datalink.platform.engine.dto.EngineCandidateVO;
 import com.datalink.platform.engine.dto.EngineDraftVO;
 import com.datalink.platform.engine.dto.EngineFlowVO;
+import com.datalink.platform.engine.dto.RefineResultVO;
 import com.datalink.platform.engine.service.EngineAnalyzeService;
+import com.datalink.platform.llm.dto.LlmRefineRequest;
+import com.datalink.platform.llm.dto.LlmRefineResult;
+import com.datalink.platform.llm.dto.RefinementItem;
+import com.datalink.platform.llm.provider.ModelProvider;
 import com.datalink.platform.model.dto.EdgeVO;
 import com.datalink.platform.model.dto.NodeVO;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import javax.sql.DataSource;
@@ -24,6 +30,7 @@ import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -52,6 +59,7 @@ import java.util.Set;
  * </ol>
  */
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class EngineAnalyzeServiceImpl implements EngineAnalyzeService {
 
@@ -62,6 +70,7 @@ public class EngineAnalyzeServiceImpl implements EngineAnalyzeService {
 
     private final ConnectorMapper connectorMapper;
     private final ConnectionPoolRegistry poolRegistry;
+    private final ModelProvider modelProvider;
 
     /** 单列元信息 */
     private static class ColMeta {
@@ -207,6 +216,53 @@ public class EngineAnalyzeServiceImpl implements EngineAnalyzeService {
 
         buildGraph(draft, businessTables, candidates, db);
         return draft;
+    }
+
+    /**
+     * G4 大模型细化：引擎骨架 → ModelProvider 增量细化。
+     *
+     * <p>降级策略：任何来自 modelProvider 的异常不向上抛——记录日志后返回
+     * refinements=[("error", ...)]、provider="error" 的结果，base（引擎原稿）仍返回，
+     * 前端可回退到 G2/G3 纯引擎视图。
+     */
+    @Override
+    public RefineResultVO refine(Long connectorId) {
+        EngineDraftVO base = analyze(connectorId);
+
+        LlmRefineRequest req = LlmRefineRequest.builder()
+                .database(base.getDatabase())
+                .candidates(base.getCandidates())
+                .flows(base.getFlows())
+                .build();
+
+        LlmRefineResult r;
+        try {
+            r = modelProvider.refine(req);
+        } catch (Exception e) {
+            log.error("大模型细化调用异常，降级返回引擎原稿: {}", shortMessage(e), e);
+            return RefineResultVO.builder()
+                    .base(base)
+                    .addedNodes(Collections.emptyList())
+                    .addedEdges(Collections.emptyList())
+                    .renameMap(Collections.emptyMap())
+                    .refinements(List.of(new RefinementItem("error", "大模型调用异常，已返回引擎原稿")))
+                    .provider("error")
+                    .message("大模型调用异常，已返回引擎原稿")
+                    .build();
+        }
+
+        if (r == null) {
+            r = LlmRefineResult.builder().build();
+        }
+        return RefineResultVO.builder()
+                .base(base)
+                .addedNodes(r.getAddedNodes() == null ? Collections.emptyList() : r.getAddedNodes())
+                .addedEdges(r.getAddedEdges() == null ? Collections.emptyList() : r.getAddedEdges())
+                .renameMap(r.getRenameMap() == null ? Collections.emptyMap() : r.getRenameMap())
+                .refinements(r.getRefinements() == null ? Collections.emptyList() : r.getRefinements())
+                .provider(r.getProvider())
+                .message(r.getMessage())
+                .build();
     }
 
     /** nodeId → TableMeta */

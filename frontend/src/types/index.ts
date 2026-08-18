@@ -264,3 +264,20 @@ export interface EngineDraft {
   flows: EngineFlow[];                 // 流程模板
   message?: string;
 }
+
+/** 大模型细化清单项（rename/chain/party/relation/flow + noop/error） */
+export interface RefinementItem {
+  type: string;
+  text: string;
+}
+
+/** 引擎草稿 + 大模型细化返回（对应后端 RefineResultVO） */
+export interface EngineRefineResult {
+  base: EngineDraft;                   // 引擎骨架原样返回（前端回退快照）
+  addedNodes: GraphNode[];             // 大模型增量节点（id 带 llm- 前缀）
+  addedEdges: GraphEdge[];             // 大模型增量边
+  renameMap: Record<string, string>;   // 改名映射（表名/节点id → 业务名）
+  refinements: RefinementItem[];       // 语义补全清单
+  provider: string;                    // noop=未配置大模型 / error=调用异常
+  message?: string;
+}

@@ -7,12 +7,12 @@
  * - 15.4 主动分流：引擎出草稿后用户主动选择「够用→人工校正 / 加大模型细化 / 作废重来」
  * - 15.6 流程：图来源入口 → 选路线 → 出草稿 → 主动分流 → 人工校正（唯一拍板）→ 准底图
  *
- * G2 阶段用假数据模拟全流程手感；G3 引擎、G4 大模型、G5 校正闭环将替换为真实后端。
+ * G2 阶段用假数据模拟全流程手感；G3 引擎、G4 大模型已接真实后端，G5 校正闭环待接入。
  * 原则：主动权在人不在系统——系统只清楚呈现草稿，不做自检/裁决。
  */
 import { computed, onBeforeUnmount, ref } from 'vue';
-import type { EngineCandidate, EngineDraft, GraphEdge, GraphNode } from '@/types';
-import { fetchEngineAnalyze, fetchConnectors } from '@/api';
+import type { EngineCandidate, EngineDraft, EngineRefineResult, GraphEdge, GraphNode, RefinementItem } from '@/types';
+import { fetchEngineAnalyze, fetchConnectors, postEngineRefine } from '@/api';
 import GraphCanvas from '@/components/GraphCanvas.vue';
 import Icon from '@/components/Icon.vue';
 
@@ -80,29 +80,6 @@ const ENGINE_EDGES: GraphEdge[] = [
   { id: '12', source: 't6', target: 's1', relationType: 'DATA_FLOW' },
 ];
 
-/* —— 大模型细化草稿：引擎骨架 + 语义补全（动作/参与方/业务关系） —— */
-const LLM_NODES: GraphNode[] = [
-  ...ENGINE_NODES,
-  { id: 'dept1', name: '财务科', code: 'FIN', nodeType: 'DEPARTMENT', level: 'L2', status: 'ACTIVE', checkpoints: [] },
-  { id: 'role1', name: '收费员', code: 'CASHIER', nodeType: 'ROLE', level: 'L3', status: 'ACTIVE', checkpoints: [] },
-  { id: 'a1', name: '挂号', code: 'ACT_REG', nodeType: 'ACTION', level: 'L2', status: 'ACTIVE', checkpoints: [] },
-  { id: 'a2', name: '收费', code: 'ACT_FEE', nodeType: 'ACTION', level: 'L2', status: 'ACTIVE', checkpoints: [] },
-  { id: 'a3', name: '退费审批', code: 'ACT_REFUND', nodeType: 'ACTION', level: 'L3', status: 'ACTIVE', checkpoints: [] },
-  { id: 'a4', name: '结算', code: 'ACT_SETTLE', nodeType: 'ACTION', level: 'L3', status: 'ACTIVE', checkpoints: [] },
-];
-
-const LLM_EDGES: GraphEdge[] = [
-  ...ENGINE_EDGES,
-  { id: '13', source: 'role1', target: 'a1', relationType: 'API' },
-  { id: '14', source: 'a1', target: 't1', relationType: 'DATA_FLOW' },
-  { id: '15', source: 'role1', target: 'a2', relationType: 'API' },
-  { id: '16', source: 'a2', target: 't2', relationType: 'DATA_FLOW' },
-  { id: '17', source: 'dept1', target: 'a3', relationType: 'APPROVAL' },
-  { id: '18', source: 'a3', target: 't5', relationType: 'DATA_FLOW' },
-  { id: '19', source: 's1', target: 'a4', relationType: 'API' },
-  { id: '20', source: 'a4', target: 't6', relationType: 'DATA_FLOW' },
-];
-
 /* —— 引擎识别出的候选单据（15.3 置信度展示） —— */
 interface DraftCandidate {
   name: string;
@@ -127,20 +104,22 @@ const engineData = ref<EngineDraft | null>(null);
 const engineCandidates = ref<DraftCandidate[]>([]);
 const engineError = ref('');
 const engineConnectorName = ref('');
+const engineConnectorId = ref('');
 
-/* —— 大模型语义补全清单 —— */
-interface LlmRefinement {
-  type: string;
-  text: string;
+/* —— G4 大模型细化结果（refineWithLlm 赋值；null 表示尚未细化） —— */
+const refineResult = ref<EngineRefineResult | null>(null);
+const refineLoading = ref(false);
+const refineError = ref('');
+
+/* —— 大模型语义补全清单（G4 真实接口返回；type 取值 rename/chain/party/relation/flow + noop/error） —— */
+const REFINE_TYPE_LABEL: Record<string, string> = {
+  rename: '改名', chain: '动作链', party: '参与方', relation: '关系', flow: '流程',
+  noop: '兜底', error: '异常',
+};
+
+function refineTypeLabel(t: string) {
+  return REFINE_TYPE_LABEL[t] ?? t;
 }
-
-const LLM_REFINEMENTS: LlmRefinement[] = [
-  { type: '改名', text: '表 fee_order → 业务名「收费单」，识别为收费动作的主单据' },
-  { type: '动作链', text: '补全业务动作链：挂号 → 收费 → 退费审批 → 结算' },
-  { type: '参与方', text: '识别参与方：收费员（岗位）、财务科（部门）' },
-  { type: '关系', text: '补全关系：退费审批由财务科负责（APPROVAL）、收费员发起收费（API）' },
-  { type: '流程', text: '给出候选流程「门诊收费流程」，默认路线：挂号→收费→结算' },
-];
 
 /* —— 人工校正待确认清单（基于当前草稿） —— */
 const MANUAL_NODES = [
@@ -180,6 +159,7 @@ async function acquireEngineDraft() {
     engineData.value = draft;
     engineCandidates.value = (draft.candidates ?? []) as DraftCandidate[];
     engineConnectorName.value = dbConn.name;
+    engineConnectorId.value = dbConn.id;
   } catch (err) {
     console.warn('[G3] 引擎分析调用失败，回退演示数据：', err);
     engineData.value = null;
@@ -201,7 +181,7 @@ function startRoute(key: RouteKey) {
   if (scanTimer !== null) window.clearTimeout(scanTimer);
   scanTimer = window.setTimeout(() => {
     if (key === 'llm') {
-      stage.value = 'llm';
+      void startLlmRoute();
       return;
     }
     stage.value = 'draft';
@@ -211,14 +191,45 @@ function startRoute(key: RouteKey) {
   }, 1500);
 }
 
+/** 大模型路线：先确保有引擎草稿，再调真实细化接口；无连接器则退回引擎草稿态并提示 */
+async function startLlmRoute() {
+  if (engineData.value === null && engineCandidates.value.length === 0) {
+    await acquireEngineDraft();
+  }
+  if (!engineConnectorId.value) {
+    refineError.value = '未找到已启用的 DB 连接器，无法调用大模型细化（当前展示引擎演示草稿）';
+    stage.value = 'draft';
+    return;
+  }
+  await refineWithLlm();
+}
+
 /** 主动分流 ①：草稿够用 → 直接人工校正 */
 function goManual() {
   stage.value = 'manual';
 }
 
-/** 主动分流 ②：草稿不够 → 加大模型细化（引擎路线内可回退） */
-function refineWithLlm() {
-  stage.value = 'llm';
+/** 主动分流 ②：草稿不够 → 加大模型细化（G4 真实接口；引擎路线内可回退） */
+async function refineWithLlm() {
+  refineError.value = '';
+  if (refineResult.value) {
+    stage.value = 'llm';
+    return;
+  }
+  if (!engineConnectorId.value) {
+    refineError.value = '未找到已启用的 DB 连接器，无法调用大模型细化';
+    return;
+  }
+  refineLoading.value = true;
+  try {
+    refineResult.value = await postEngineRefine(engineConnectorId.value);
+    stage.value = 'llm';
+  } catch (err) {
+    console.warn('[G4] 大模型细化调用失败：', err);
+    refineError.value = err instanceof Error ? err.message : String(err);
+  } finally {
+    refineLoading.value = false;
+  }
 }
 
 /** 主动分流 ③：草稿太乱 → 作废重来（回到入口，可回退） */
@@ -238,6 +249,9 @@ function resetAll() {
   routeKey.value = null;
   confirmedBaseGraph.value = false;
   engineError.value = '';
+  refineResult.value = null;
+  refineError.value = '';
+  refineLoading.value = false;
 }
 
 /** 人工校正拍板：确认准底图 */
@@ -255,23 +269,45 @@ onBeforeUnmount(() => {
 
 /* —— 派生数据 —— */
 const isDraftStage = computed(() => stage.value === 'draft' || stage.value === 'llm');
-/** 引擎草稿节点：优先真实接口草稿，否则 G2 兜底假数据 */
+/** 引擎骨架节点：优先真实接口草稿，否则 G2 兜底假数据 */
+const engineBaseNodes = computed<GraphNode[]>(() =>
+  engineData.value?.draftNodes?.length ? engineData.value.draftNodes : ENGINE_NODES,
+);
+const engineBaseEdges = computed<GraphEdge[]>(() =>
+  engineData.value?.draftEdges?.length ? engineData.value.draftEdges : ENGINE_EDGES,
+);
+/** 应用 renameMap：按 code（表名）/ id / name 匹配改业务名 */
+function applyRename(nodes: GraphNode[], rename: Record<string, string>): GraphNode[] {
+  return nodes.map((n) => {
+    const newName = (n.code && rename[n.code]) || rename[n.id] || rename[n.name];
+    return newName ? { ...n, name: newName } : n;
+  });
+}
+/** 草稿节点：draft 态为引擎骨架；llm 态为骨架改名 + 大模型增量合并（骨架引用保留即天然回退快照） */
 const draftNodes = computed<GraphNode[]>(() => {
-  if (stage.value === 'llm') return LLM_NODES;
-  return engineData.value?.draftNodes?.length ? engineData.value.draftNodes : ENGINE_NODES;
+  if (stage.value !== 'llm' || !refineResult.value) return engineBaseNodes.value;
+  const renamed = applyRename(engineBaseNodes.value, refineResult.value.renameMap ?? {});
+  return [...renamed, ...(refineResult.value.addedNodes ?? [])];
 });
-/** 引擎草稿边 */
+/** 草稿边：llm 态在骨架边上追加大模型增量边 */
 const draftEdges = computed<GraphEdge[]>(() => {
-  if (stage.value === 'llm') return LLM_EDGES;
-  return engineData.value?.draftEdges?.length ? engineData.value.draftEdges : ENGINE_EDGES;
+  if (stage.value !== 'llm' || !refineResult.value) return engineBaseEdges.value;
+  return [...engineBaseEdges.value, ...(refineResult.value.addedEdges ?? [])];
 });
+/** 语义补全清单（真实接口返回） */
+const llmRefinements = computed<RefinementItem[]>(() => refineResult.value?.refinements ?? []);
+/** 未配置大模型（Noop 兜底） */
+const isNoopProvider = computed(() => refineResult.value?.provider === 'noop');
 const isLlmRefined = computed(() => stage.value === 'llm');
 const isManualRoute = computed(() => routeKey.value === 'manual');
 const draftTitle = computed(() => (isLlmRefined.value ? '大模型细化草稿' : '引擎分析草稿'));
 const draftSummary = computed(() => {
   const n = draftNodes.value.length;
   const e = draftEdges.value.length;
-  if (isLlmRefined.value) return `引擎骨架 + 大模型语义补全 · ${n} 节点 / ${e} 关系`;
+  if (isLlmRefined.value) {
+    const tag = isNoopProvider.value ? '引擎原稿（未配置大模型）' : '引擎骨架 + 大模型语义补全';
+    return `${tag} · ${n} 节点 / ${e} 关系`;
+  }
   const src = engineData.value ? `扫描 ${engineData.value.database} · ${engineCandidates.value.length} 候选单据` : '引擎扫描 5 张表识别候选单据';
   return `${src} · ${n} 节点 / ${e} 关系`;
 });
@@ -378,6 +414,9 @@ const manualTypeLabel: Record<string, string> = {
           <div v-if="engineError" class="gs-left-warn">
             <Icon name="alert" :size="13" />{{ engineError }}（已回退演示数据）
           </div>
+          <div v-if="refineError" class="gs-left-warn">
+            <Icon name="alert" :size="13" />{{ refineError }}
+          </div>
           <div class="gs-cand-list">
             <div v-for="c in engineCandidates" :key="c.table" class="gs-cand">
               <div class="gs-cand-row">
@@ -399,12 +438,15 @@ const manualTypeLabel: Record<string, string> = {
         <template v-else>
           <div class="gs-left-header">
             <div class="gs-left-title">大模型语义补全</div>
-            <span class="tag tag--info gs-left-count">{{ LLM_REFINEMENTS.length }} 项</span>
+            <span class="tag tag--info gs-left-count">{{ llmRefinements.length }} 项</span>
           </div>
           <div class="gs-left-sub">在引擎骨架之上补全业务语义（可回退到纯引擎草稿）</div>
+          <div v-if="isNoopProvider" class="gs-left-warn">
+            <Icon name="alert" :size="13" />未配置大模型 API Key，当前为引擎原稿（Noop 兜底）。配置 LLM_API_KEY 环境变量后重试。
+          </div>
           <div class="gs-llm-list">
-            <div v-for="(r, idx) in LLM_REFINEMENTS" :key="idx" class="gs-llm-item">
-              <span class="tag tag--plain gs-llm-type">{{ r.type }}</span>
+            <div v-for="(r, idx) in llmRefinements" :key="idx" class="gs-llm-item">
+              <span class="tag tag--plain gs-llm-type">{{ refineTypeLabel(r.type) }}</span>
               <div class="gs-llm-text">{{ r.text }}</div>
             </div>
           </div>
@@ -423,7 +465,7 @@ const manualTypeLabel: Record<string, string> = {
           <div class="gs-canvas-meta">
             <span v-if="engineConnectorName && !isLlmRefined" class="tag tag--plain">{{ engineConnectorName }}</span>
             <span class="tag" :class="isLlmRefined ? 'tag--info' : 'tag--accent'">
-              {{ isLlmRefined ? '引擎 + 大模型' : '纯引擎' }}
+              {{ isLlmRefined ? (isNoopProvider ? '引擎原稿（Noop）' : '引擎 + 大模型') : '纯引擎' }}
             </span>
           </div>
         </div>
@@ -452,8 +494,8 @@ const manualTypeLabel: Record<string, string> = {
               <button class="btn btn-primary" @click="goManual">
                 <Icon name="check" :size="15" />草稿够用 · 直接人工校正
               </button>
-              <button class="btn btn-outline" @click="refineWithLlm">
-                <Icon name="link" :size="15" />加大模型细化
+              <button class="btn btn-outline" :disabled="refineLoading" @click="refineWithLlm">
+                <Icon name="link" :size="15" />{{ refineLoading ? '大模型细化中…' : '加大模型细化' }}
               </button>
               <button class="btn btn-danger" @click="discardAll">
                 <Icon name="refresh" :size="15" />作废重来

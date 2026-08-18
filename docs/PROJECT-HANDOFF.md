@@ -1,6 +1,6 @@
 # 项目续接文档（HANDOFF）
 
-> 本文件是「对话打包」：**新会话先读本文件即可无缝续接**。主文档是项目文档书 v1.6，本文件用于快速恢复进度、记录已验证事实与下一步起点。
+> 本文件是「对话打包」：**新会话先读本文件即可无缝续接**。主文档是项目文档书 v1.7，本文件用于快速恢复进度、记录已验证事实与下一步起点。
 
 ## 一、这是什么项目
 
@@ -12,7 +12,7 @@
 
 | 文档 | 路径 | 用途 |
 | --- | --- | --- |
-| **项目文档书 v1.6** | `docs/数据关联与业务流程监控分析平台-项目文档书-v1.0.md` | ⭐ 交付基准：14 章 + 4 附录，含完整 DDL/RBAC/用户故事/页面清单 |
+| **项目文档书 v1.7** | `docs/数据关联与业务流程监控分析平台-项目文档书-v1.0.md` | ⭐ 交付基准：14 章 + 4 附录，含完整 DDL/RBAC/用户故事/页面清单 |
 | 讨论草稿 | `docs/superpowers/specs/2026-08-15-数据关联流向分析平台-设计方案.md` | 需求演进过程记录 |
 | 前端说明 | `frontend/README.md`、`frontend/DEPLOY.md` | 前端开发与部署 |
 | 后端说明 | `backend/README.md`、`backend/DEPLOY.md` | **后端开发与部署（含双数据库模式）** |
@@ -148,6 +148,7 @@
 - [x] 项目文档书 v1.4（图来源 G1 三层视图定型）
 - [x] 项目文档书 v1.5（图来源 G2 管线原型，整体进度 99.4%，图来源 40%）
 - [x] 项目文档书 v1.6（图来源 G3 引擎最小可行版，整体进度 99.6%，图来源 60%）
+- [x] 项目文档书 v1.7（图来源 G4 大模型接入层，整体进度 99.8%，图来源 80%）
 
 ### 图来源 G3 引擎最小可行版（✅ 完成，2026-08-18，无头 Chrome 程序化复核全流程真实数据通过）
 - **后端 G3a-G3d ✅ 完成（2026-08-17）**：
@@ -167,8 +168,16 @@
   - 无头 Chrome 程序化复核：入口 → 扫描 → 引擎草稿（真实数据：1 DATABASE + 6 TABLE + 10 边 + 6 候选 + 1 流程模板「挂号单→收费单→支付流水」）→ 加大模型 14/20 → 回退 7/10 → 作废回入口 → 再引擎 → 人工校正 5 项 → 确认 toast + 复位 ✓
   - `.data/g3_engine_verify.py`（复用 g2 结构）
 
+### 图来源 G4 大模型接入层（✅ 完成，2026-08-18，Noop 路径全链路复核通过；真实供应商验证待用户提供 API key）
+- **后端 llm 包（子代理A）**：`com.datalink.platform.llm`——`ModelProvider` 接口（`name()/available()/refine()`）+ `NoopModelProvider`（无 key 兜底，返回引擎原稿 + noop refinement）+ `OpenAiCompatibleModelProvider`（RestClient POST `/chat/completions`，```json 围栏剥离，解析失败/超时降级 error 绝不抛异常，日志禁打 key）；`LlmConfig` 条件装配（`@ConditionalOnExpression` 判 api-key 非空 → 真实实现；`@ConditionalOnMissingBean` → Noop）；`datalink.llm.*` 配置全走环境变量（`LLM_API_KEY`/`LLM_BASE_URL`/`LLM_MODEL` 即可切换 DeepSeek/通义/Claude/GPT）
+- **refine 接口（子代理B）**：`POST /api/analyze/refine`（SecurityConfig 加 POST authenticated）——请求 `RefineRequest{connectorId}`（后端复跑引擎取 base，前端不回传草稿）；响应 `RefineResultVO`：base（引擎骨架原样 = 回退快照）+ addedNodes/addedEdges（llm- 前缀增量）+ renameMap + refinements（rename/chain/party/relation/flow + noop/error）+ provider + message；provider 异常降级 `provider="error"` 不抛出
+- **前端（主会话）**：`postEngineRefine` + `RefinementItem/EngineRefineResult` 类型；GraphSourceView **删除 LLM_NODES/LLM_EDGES/LLM_REFINEMENTS 假数据**——细化草稿 = 引擎骨架 applyRename + 增量合并（骨架引用即回退快照，一键回纯引擎）；Noop 时琥珀色提示条「未配置大模型 API Key」+ 徽标「引擎原稿（Noop）」；refine 结果缓存（回退后再细化不重复调接口）；大模型路线直进真实接口
+- **验证**：后端 **24 测试类 94 用例全绿**（新增 4 测试类：装配/解析降级/Service 细化/Controller MockMvc）；`POST /api/analyze/refine {connectorId:1}` 实测 code=200、provider=noop、base 7 节点/10 边/6 候选与引擎一致；无头 Chrome 复核（`.data/g4_llm_verify.py`）Noop 全链路（草稿→细化→回退→作废→大模型路线→人工校正→复位）通过，无假数据残留
+- **待补**：真实供应商验证（DeepSeek/通义）——用户提供 key 后设环境变量重启即可，无需改代码
+
 **远程仓库历史**（已推送，最新 10 条）：
 ```
+c2ff7e1 图来源 G3 引擎最小可行版完成：前端真实接线 + 文档同步 v1.6
 e4ea8f1 图来源 G1~G3 实现：三层视图 + 管线原型 + 引擎最小可行版（进行中）
 f292b45 路径查询地铁图：PathMapView（SVG 多色平行线 + 双圈换乘站 + 起点终点徽标 + 标签自适应）
 80cfd4f 关系网增强：2D/3D 一键切换 + 路线视图过滤 + 流程 id 对齐
@@ -228,7 +237,7 @@ M0~M4 全部里程碑（含 RBAC、M3 补充、M4 前端增强）均已交付并
 1. **✅ G1 三层视图定型**（2026-08-17 完成）：数据流/业务流/融合三视图的前端投影（GraphView 加切换 tabs + layerView 过滤 + 图例收窄），无头 Chrome 复核三层渲染通过（融合 18 节点/20 边 · 数据流 6/2 · 业务流 12/10）
 2. **✅ G2 图来源管线原型**（2026-08-17 完成）：前端交互原型——入口三条路线 → 引擎草稿 → 用户主动选择「够用/加大模型/作废重来」→ 统一人工校正 → 准底图（可回退，主动权在人）
 3. **✅ G3 引擎最小可行版**（2026-08-18 完成）：`/api/analyze` 引擎分析接口——复用连接器连接池扫描 HIS 演示库（启动期种子 + DemoConnectorSeeder 运行时加密），单据模式识别（5 信号打分 + 单号前缀归属判定 + H2 内部表过滤），实测置信度回填（fee_order 85 / reg_order 75 / refund_apply 65 / settle_bill 60 / pay_record 60 / prescription_detail 40），产出草稿 1 库节点 + 6 表节点 + 10 边 + 流程模板「挂号单→收费单→支付流水」；前端 GraphSourceView 接入真实数据（失败兜底假数据 + 错误提示条）；无头 Chrome 程序化复核全流程真实数据通过
-4. **G4 大模型接入层**：可插拔模型层（DeepSeek/通义/Claude/GPT 等），至少一个供应商验证
+4. **✅ G4 大模型接入层**（2026-08-18 完成，真实供应商验证待 key）：`llm` 包 ModelProvider 可插拔（Noop 兜底 + OpenAI 兼容实现，`datalink.llm.*` 环境变量配置不硬编码）；`POST /api/analyze/refine`（引擎骨架 + 增量 + renameMap + 五类细化清单）；前端删 LLM 假数据改真实接线（骨架改名 + 增量合并 + 一键回退 + Noop 提示条）；后端 24 测试类 94 用例全绿 + 无头 Chrome 复核 Noop 全链路通过。**待补：用户提供 API key 后做真实供应商验证 + 切换模型对比**
 5. **G5 校正闭环**：校正记录留存 + 模式库沉淀（越校越准）
 
 **补充功能（可并行）**：
@@ -246,7 +255,7 @@ M0~M4 全部里程碑（含 RBAC、M3 补充、M4 前端增强）均已交付并
 
 ## 八、续接起点
 
-**当前任务 = 图来源 G1~G5 实现（G1、G2、G3 已完成，G4 待开始）**。M0~M4 全部里程碑（含 RBAC、M3 补充、M4 前端增强）均已交付并推送到 GitHub（后端 20 测试类 82 用例全绿）。
-新会话第一步：读本文档 → `cd backend && mvn spring-boot:run` 起服务 → 浏览器打开 http://localhost:5173 登录（admin/admin123）→ 依次查看 **图来源**（三条路线 + 引擎真实草稿 + 主动分流 + 人工校正，G1~G3 已全链路）、**关系网画布**（2D/3D 切换、路线过滤、**三层视图切换 数据流/业务流/融合**）、**路径查询地铁图**、**3D 视图**、**大屏**。
-前端已完整可用：登录 + 图来源（G1~G3 全链路，真实引擎草稿）+ 关系网画布（排查/路径/影响面/2D⇄3D/路线过滤/**三层视图**）+ 地铁图 + 3D 视图 + 大屏 + 看板 + 告警 + 检测点 + 版本 + 数据接入（DB+CMDB）+ 系统管理（运行信息/开放 API 卡）。
-**G3 起服务注意**：旧后端进程若无 G3 种子（连接器表空），需重启 `spring-boot:run` 让 `DemoBizDbInitializer`（`@Order(10)`）+ `DemoConnectorSeeder`（`@Order(20)`）运行，HIS 连接器 id=1 才会出现。
+**当前任务 = 图来源 G1~G5 实现（G1~G4 已完成，G5 待开始）**。M0~M4 全部里程碑（含 RBAC、M3 补充、M4 前端增强）均已交付并推送到 GitHub（后端 24 测试类 94 用例全绿）。
+新会话第一步：读本文档 → `cd backend && mvn spring-boot:run` 起服务 → 浏览器打开 http://localhost:5173 登录（admin/admin123）→ 依次查看 **图来源**（三条路线 + 引擎真实草稿 + 大模型细化 Noop 兜底 + 主动分流 + 人工校正，G1~G4 已全链路）、**关系网画布**（2D/3D 切换、路线过滤、**三层视图切换 数据流/业务流/融合**）、**路径查询地铁图**、**3D 视图**、**大屏**。
+前端已完整可用：登录 + 图来源（G1~G4 全链路，真实引擎草稿 + 大模型细化接口 Noop 兜底）+ 关系网画布（排查/路径/影响面/2D⇄3D/路线过滤/**三层视图**）+ 地铁图 + 3D 视图 + 大屏 + 看板 + 告警 + 检测点 + 版本 + 数据接入（DB+CMDB）+ 系统管理（运行信息/开放 API 卡）。
+**G4 起服务注意**：①旧后端进程若无 G3 种子（连接器表空），需重启 `spring-boot:run` 让 `DemoBizDbInitializer`（`@Order(10)`）+ `DemoConnectorSeeder`（`@Order(20)`）运行，HIS 连接器 id=1 才会出现；②无 `LLM_API_KEY` 时大模型细化走 Noop 兜底（返回引擎原稿 + 提示），配置 `LLM_API_KEY`/`LLM_BASE_URL`/`LLM_MODEL` 环境变量即切真实供应商（DeepSeek 默认）。
