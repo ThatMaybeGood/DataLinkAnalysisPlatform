@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /** 告警中心：等级驱动的预警与工单处置 */
 import { computed, onMounted, ref } from 'vue';
-import { fetchAlerts, resolveAlert } from '@/api';
+import { createAlert, fetchAlerts, resolveAlert } from '@/api';
 import type { AlertItem } from '@/types';
 import Icon from '@/components/Icon.vue';
 import Tag from '@/components/Tag.vue';
@@ -14,6 +14,7 @@ const alerts = ref<AlertItem[]>([]);
 const loading = ref(true);
 const loadError = ref('');
 const resolvingId = ref('');
+const toast = ref('');
 
 async function loadAlerts() {
   loading.value = true;
@@ -58,6 +59,11 @@ const targetTypeLabel: Record<string, string> = {
   NODE: '节点', INSTANCE: '实例', ROUTE: '路线', PROCESS: '流程',
 };
 
+function showToast(message: string) {
+  toast.value = message;
+  window.setTimeout(() => (toast.value = ''), 2000);
+}
+
 /* —— 处理（关闭）告警，成功后刷新列表 —— */
 async function handleResolve(alert: AlertItem) {
   resolvingId.value = alert.id;
@@ -65,12 +71,81 @@ async function handleResolve(alert: AlertItem) {
   try {
     await resolveAlert(alert.id);
     await loadAlerts();
+    showToast('告警已处理');
   } catch (err) {
     loadError.value = err instanceof Error ? err.message : '告警处理失败';
   } finally {
     resolvingId.value = '';
   }
 }
+
+/* —— 导出告警 CSV —— */
+function exportAlerts() {
+  const rows = filtered.value.map((a) => ({
+    级别: a.severity,
+    类型: typeMeta[a.type]?.label ?? a.type,
+    目标类型: targetTypeLabel[a.targetType] ?? a.targetType,
+    目标: a.targetName,
+    消息: a.message,
+    等级: a.level,
+    时间: a.time,
+    状态: a.status,
+  }));
+  if (rows.length === 0) {
+    showToast('没有可导出的告警');
+    return;
+  }
+  const headers = Object.keys(rows[0]);
+  const csv = [headers.join(','), ...rows.map((r) => headers.map((h) => `"${String((r as Record<string, string>)[h]).replace(/"/g, '""')}"`).join(','))].join('\n');
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `alerts_${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('告警记录已导出');
+}
+
+/* —— 新建告警（规则） —— */
+const showCreate = ref(false);
+const newAlert = ref({
+  type: 'FAIL' as AlertItem['type'],
+  severity: 'P2' as AlertItem['severity'],
+  targetType: 'NODE',
+  targetId: '',
+  targetName: '',
+  message: '',
+});
+const typeOptions: { label: string; value: AlertItem['type'] }[] = [
+  { label: '卡住', value: 'STUCK' },
+  { label: '失败', value: 'FAIL' },
+  { label: '超时', value: 'TIMEOUT' },
+  { label: '校验失败', value: 'CHECK_FAIL' },
+];
+const targetTypeOptions = ['NODE', 'INSTANCE', 'ROUTE', 'PROCESS'];
+
+async function handleCreate() {
+  if (!newAlert.value.targetId.trim() || !newAlert.value.message.trim()) return;
+  try {
+    await createAlert({
+      type: newAlert.value.type,
+      severity: newAlert.value.severity,
+      targetType: newAlert.value.targetType,
+      targetId: newAlert.value.targetId,
+      message: newAlert.value.message,
+    });
+    showCreate.value = false;
+    newAlert.value = { type: 'FAIL', severity: 'P2', targetType: 'NODE', targetId: '', targetName: '', message: '' };
+    await loadAlerts();
+    showToast('告警已创建');
+  } catch (err) {
+    loadError.value = err instanceof Error ? err.message : '创建失败';
+  }
+}
+
+/* —— 查看详情 —— */
+const viewing = ref<AlertItem | null>(null);
 </script>
 
 <template>
@@ -81,14 +156,18 @@ async function handleResolve(alert: AlertItem) {
         <p class="page-subtitle">等级驱动的预警与工单处置</p>
       </div>
       <div class="page-actions">
-        <button class="btn btn-ghost">
+        <button class="btn btn-ghost" @click="exportAlerts">
           <Icon name="export" :size="15" />导出
         </button>
-        <button class="btn btn-primary">
+        <button class="btn btn-primary" @click="showCreate = true">
           <Icon name="plus" :size="15" />新建告警规则
         </button>
       </div>
     </header>
+
+    <div v-if="toast" class="toast">
+      <Icon name="check" :size="14" />{{ toast }}
+    </div>
 
     <div class="stat-grid mb-md">
       <StatCard label="未处理" :value="openCount" sub="需及时跟进处置" icon="alert" color="danger" />
@@ -165,9 +244,7 @@ async function handleResolve(alert: AlertItem) {
                         @click="handleResolve(alert)"
                       >{{ resolvingId === alert.id ? '处理中…' : '处理' }}</button>
                     </template>
-                    <template v-else>
-                      <button class="btn btn-ghost btn-sm">查看</button>
-                    </template>
+                    <button class="btn btn-ghost btn-sm" @click="viewing = alert">查看</button>
                   </div>
                 </td>
               </tr>
@@ -188,6 +265,105 @@ async function handleResolve(alert: AlertItem) {
         <div class="row muted note">
           <Icon name="alert" :size="14" />
           <span>告警按节点等级分级：L1 立即告警+升级，L2 失败/超时告警，L3 汇总提醒，L4 仅记录</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 新建告警弹窗 -->
+    <div v-if="showCreate" class="modal-overlay" @click.self="showCreate = false">
+      <div class="modal">
+        <div class="modal-header">
+          <div class="modal-title">新建告警规则</div>
+          <button class="btn btn-ghost btn-sm" @click="showCreate = false">关闭</button>
+        </div>
+        <div class="modal-body">
+          <div class="grid form-grid">
+            <div class="field">
+              <label class="label">告警类型</label>
+              <select v-model="newAlert.type" class="select">
+                <option v-for="t in typeOptions" :key="t.value" :value="t.value">{{ t.label }}</option>
+              </select>
+            </div>
+            <div class="field">
+              <label class="label">级别</label>
+              <select v-model="newAlert.severity" class="select">
+                <option value="P0">P0</option>
+                <option value="P1">P1</option>
+                <option value="P2">P2</option>
+                <option value="P3">P3</option>
+              </select>
+            </div>
+            <div class="field">
+              <label class="label">目标类型</label>
+              <select v-model="newAlert.targetType" class="select">
+                <option v-for="t in targetTypeOptions" :key="t" :value="t">{{ targetTypeLabel[t] ?? t }}</option>
+              </select>
+            </div>
+            <div class="field">
+              <label class="label">目标 ID *</label>
+              <input v-model="newAlert.targetId" class="input" placeholder="节点/实例/路线 ID" />
+            </div>
+          </div>
+          <div class="field">
+            <label class="label">告警消息 *</label>
+            <input v-model="newAlert.message" class="input" placeholder="说明告警原因…" />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline" @click="showCreate = false">取消</button>
+          <button
+            class="btn btn-primary"
+            :disabled="!newAlert.targetId.trim() || !newAlert.message.trim()"
+            @click="handleCreate"
+          >创建</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 查看详情弹窗 -->
+    <div v-if="viewing" class="modal-overlay" @click.self="viewing = null">
+      <div class="modal modal--sm">
+        <div class="modal-header">
+          <div class="modal-title">告警详情</div>
+          <button class="btn btn-ghost btn-sm" @click="viewing = null">关闭</button>
+        </div>
+        <div class="modal-body">
+          <div class="detail-row">
+            <span class="detail-label">级别</span>
+            <span class="tag" :class="severityMeta[viewing.severity]">{{ viewing.severity }}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">类型</span>
+            <span class="tag" :class="typeMeta[viewing.type].cls">{{ typeMeta[viewing.type].label }}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">目标</span>
+            <span>{{ viewing.targetName }}（{{ targetTypeLabel[viewing.targetType] ?? viewing.targetType }}）</span>
+          </div>
+          <div class="detail-row detail-row--block">
+            <span class="detail-label">消息</span>
+            <span class="detail-msg">{{ viewing.message }}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">节点等级</span>
+            <span class="lv" :class="`lv--${viewing.level}`">{{ viewing.level }}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">时间</span>
+            <span class="cell-mono">{{ viewing.time }}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">状态</span>
+            <Tag :status="viewing.status" />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline" @click="viewing = null">关闭</button>
+          <button
+            v-if="viewing.status === 'OPEN'" class="btn btn-primary"
+            :disabled="resolvingId === viewing.id"
+            @click="handleResolve(viewing); viewing = null"
+          >{{ resolvingId === viewing.id ? '处理中…' : '标记已处理' }}</button>
         </div>
       </div>
     </div>
@@ -213,4 +389,51 @@ async function handleResolve(alert: AlertItem) {
   border: 1px solid rgba(220, 38, 38, 0.35);
   font-size: 12.5px;
 }
+.toast {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 12px; margin-bottom: 12px;
+  color: var(--success); background: var(--success-soft);
+  border-radius: var(--radius-sm); font-size: 13px;
+}
+
+/* 弹窗 */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 50;
+  background: rgba(0, 0, 0, .45);
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+}
+.modal {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); width: 520px; max-width: 100%;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, .2);
+}
+.modal--sm { width: 420px; }
+.modal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px; border-bottom: 1px solid var(--border);
+}
+.modal-title { font-weight: 600; }
+.modal-body { padding: 20px; }
+.modal-footer {
+  display: flex; justify-content: flex-end; gap: 10px;
+  padding: 14px 20px; border-top: 1px solid var(--border);
+}
+.form-grid { grid-template-columns: repeat(2, 1fr); gap: 16px; }
+.field { margin-bottom: 14px; }
+.field:last-child { margin-bottom: 0; }
+.label { display: block; font-size: 12px; color: var(--fg-muted); margin-bottom: 6px; }
+.input, .select {
+  width: 100%; padding: 8px 10px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border); background: var(--surface);
+  color: var(--fg); font-size: 13px;
+}
+.detail-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 8px 0; border-bottom: 1px solid var(--border);
+}
+.detail-row:last-child { border-bottom: none; }
+.detail-row--block { flex-direction: column; align-items: flex-start; gap: 6px; }
+.detail-label { font-size: 12px; color: var(--fg-faint); min-width: 70px; }
+.detail-msg { color: var(--fg); line-height: 1.5; }
 </style>

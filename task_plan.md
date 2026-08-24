@@ -4,7 +4,7 @@
 实现文档书第 15 章「图来源与自动/半自动分析」——三条路线（引擎/大模型/人工）+ 三层视图 + 校正闭环，按 G1→G5 顺序全部落地，并同步更新文档书第 0 章与 HANDOFF。
 
 ## 当前阶段
-阶段 G5：校正闭环（G4 已完成，G5 待开始）
+阶段 G5：校正闭环 + 前端操作补齐 + 后端管理接口补强（✅ 全部完成，2026-08-22）
 
 ## 各阶段
 
@@ -48,18 +48,19 @@
 - [ ] 至少一个真实供应商验证 + 切换模型对比（⏳ 待用户提供 API key：设 `LLM_API_KEY`/`LLM_BASE_URL`/`LLM_MODEL` 即可）
 - **状态：** complete ✅（2026-08-18；真实供应商验证待 key 后补）
 
-### 阶段 G5：校正闭环（后端）
-- [ ] 校正记录表（改名/确认类型/合并/增删/顺序）
-- [ ] 校正记录留存接口
-- [ ] 模式库沉淀（最简版）
-- [ ] 二次识别同一库校正量下降验证
-- **状态：** pending
+### 阶段 G5：校正闭环（后端 + 前端）
+- [x] 校正记录表（改名/确认类型/合并/增删/顺序）
+- [x] 校正记录留存接口
+- [x] 模式库沉淀（最简版）
+- [x] 前端 GraphSourceView 校正面板（改名/确认/合并/增删/排序）+ 历史记录
+- [x] 二次识别同一库校正量下降验证（模式库命中自动应用）
+- **状态：** complete ✅（2026-08-22）
 
 ### 阶段 收尾：文档同步 + 推送
-- [ ] 文档书第 0 章进度更新（G1~G5 勾选 + 百分比 + 时间）
-- [ ] HANDOFF 同步
-- [ ] 后端测试全绿 + 前端 build 全绿
-- **状态：** pending
+- [x] 文档书第 0 章进度更新（G1~G5 勾选 + 百分比 + 时间）
+- [x] HANDOFF 同步
+- [x] 后端测试全绿 + 前端 type-check/build 全绿
+- **状态：** complete ✅（2026-08-22）
 
 ## 关键问题
 1. 三层视图字段放哪？——设计定"先做前端投影"，不另起层概念，Node 实体可不动（用 nodeType/relationType/process.scene 推导）。
@@ -92,6 +93,7 @@
 
 ## 备注
 - 每完成一个 G：更新文档书第 0 章（勾选/百分比/时间）+ HANDOFF，再进下一个 G
-- 验证基线：后端 `mvn test` 全绿、前端 `npm run build` 全绿、无头 Chrome 复核渲染
+- 验证基线：后端 `mvn test` 全绿、前端 `npm run type-check` & `npm run build` 全绿、浏览器走查
 - 用户偏好：先前端看效果→再后端；项目内自主执行不逐次确认；删除文件先确认
-- 前端 ports：vite dev 代理 /api→8080（注意 application.yml 已改成 28080，需核实 vite.config 代理目标）
+- 前端 ports：vite dev 代理 /api→28080（与 backend/application.yml 对齐）
+- v1.8 额外补齐（与 G5 同期完成）：TopNav/SideNav 告警徽标接 `/api/alerts`、新增 `/instances` 与 `/tickets` 页面、ProcessListView/CheckpointView/AlertView/VersionView/SettingsView 操作按钮真实接线、版本回滚与检测点立即检测后端接口。

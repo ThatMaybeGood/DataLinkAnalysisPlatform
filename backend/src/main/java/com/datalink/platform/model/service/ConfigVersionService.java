@@ -4,6 +4,8 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.datalink.platform.common.PageResult;
+import com.datalink.platform.common.enums.ResultCode;
+import com.datalink.platform.common.exception.BusinessException;
 import com.datalink.platform.datasource.entity.Connector;
 import com.datalink.platform.datasource.mapper.ConnectorMapper;
 import com.datalink.platform.model.dto.VersionVO;
@@ -67,6 +69,48 @@ public class ConfigVersionService {
         cv.setOperator(operator);
         cv.setStatus("PUBLISHED");
         configVersionMapper.insert(cv);
+    }
+
+    /** 回滚到指定版本：复制其内容生成新版本并发布，原后续版本标记为已回滚 */
+    public VersionVO rollback(Long versionId) {
+        ConfigVersion source = configVersionMapper.selectById(versionId);
+        if (source == null) {
+            throw new BusinessException(ResultCode.NOT_FOUND.getCode(), "版本记录不存在");
+        }
+        List<ConfigVersion> latest = configVersionMapper.selectList(Wrappers.lambdaQuery(ConfigVersion.class)
+                .eq(ConfigVersion::getTargetType, source.getTargetType())
+                .eq(ConfigVersion::getTargetId, source.getTargetId())
+                .orderByDesc(ConfigVersion::getVersion)
+                .last("LIMIT 1"));
+        int nextVersion = latest.isEmpty() ? 1 : latest.get(0).getVersion() + 1;
+
+        ConfigVersion rollback = new ConfigVersion();
+        rollback.setTargetType(source.getTargetType());
+        rollback.setTargetId(source.getTargetId());
+        rollback.setVersion(nextVersion);
+        rollback.setContent(source.getContent());
+        rollback.setChangeNote("回滚至 v" + source.getVersion());
+        rollback.setOperator(currentOperator());
+        rollback.setStatus("PUBLISHED");
+        configVersionMapper.insert(rollback);
+
+        configVersionMapper.update(null, Wrappers.lambdaUpdate(ConfigVersion.class)
+                .eq(ConfigVersion::getTargetType, source.getTargetType())
+                .eq(ConfigVersion::getTargetId, source.getTargetId())
+                .gt(ConfigVersion::getVersion, source.getVersion())
+                .ne(ConfigVersion::getId, rollback.getId())
+                .set(ConfigVersion::getStatus, "ROLLED_BACK"));
+
+        return toVO(rollback);
+    }
+
+    private String currentOperator() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && !(authentication instanceof AnonymousAuthenticationToken)
+                && authentication.getName() != null && !authentication.getName().isBlank()) {
+            return authentication.getName();
+        }
+        return "system";
     }
 
     /** 分页查询（创建时间倒序，可按目标类型过滤） */

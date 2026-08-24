@@ -1,14 +1,23 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { mockAlerts } from '@/api/mockData';
-import { clearToken, DISPLAY_NAME_KEY, fetchHealth, ROLES_KEY } from '@/api';
-import type { HealthInfo } from '@/types';
+import { clearToken, DISPLAY_NAME_KEY, fetchAlerts, fetchHealth, ROLES_KEY } from '@/api';
+import type { AlertItem, HealthInfo } from '@/types';
 
 const route = useRoute();
 const router = useRouter();
 const pageTitle = computed(() => (route.meta.title as string) || '');
-const openCount = computed(() => mockAlerts.filter((a) => a.status === 'OPEN').length);
+const alerts = ref<AlertItem[]>([]);
+const openCount = computed(() => alerts.value.filter((a) => a.status === 'OPEN').length);
+
+async function loadAlerts() {
+  try {
+    alerts.value = await fetchAlerts();
+  } catch {
+    // 后端不可用时静默降级，不阻塞导航
+  }
+}
+onMounted(loadAlerts);
 
 /** 当前用户显示名（登录后写 localStorage，未登录降级「管理员」） */
 const displayName = computed(() => localStorage.getItem(DISPLAY_NAME_KEY) || '管理员');

@@ -150,6 +150,7 @@ const topSlowNodes = computed(() => stats.value?.topSlowNodes ?? []);
         <div class="card">
           <div class="card-header">
             <h2 class="card-title">最近实例</h2>
+            <router-link to="/instances" class="card-link">查看全部<Icon name="chevron" :size="13" /></router-link>
           </div>
           <div class="card-body">
             <router-link v-for="inst in recentInstances" :key="inst.id" to="/graph" class="inst-row">

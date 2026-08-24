@@ -19,6 +19,8 @@ import com.datalink.platform.llm.dto.RefinementItem;
 import com.datalink.platform.llm.provider.ModelProvider;
 import com.datalink.platform.model.dto.EdgeVO;
 import com.datalink.platform.model.dto.NodeVO;
+import com.datalink.platform.model.entity.PatternLibrary;
+import com.datalink.platform.model.service.PatternLibraryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -71,6 +73,7 @@ public class EngineAnalyzeServiceImpl implements EngineAnalyzeService {
     private final ConnectorMapper connectorMapper;
     private final ConnectionPoolRegistry poolRegistry;
     private final ModelProvider modelProvider;
+    private final PatternLibraryService patternLibraryService;
 
     /** 单列元信息 */
     private static class ColMeta {
@@ -179,6 +182,9 @@ public class EngineAnalyzeServiceImpl implements EngineAnalyzeService {
             }
         }
         candidates.sort(Comparator.comparingInt(EngineCandidateVO::getConfidence).reversed());
+
+        // G5：对候选名称应用模式库自动校正（命中模式则提升置信度并改名）
+        applyPatternCorrections(candidates);
 
         EngineDraftVO draft = new EngineDraftVO();
         draft.setDatabase(db);
@@ -507,6 +513,28 @@ public class EngineAnalyzeServiceImpl implements EngineAnalyzeService {
         if (fmt) vo.getMarks().add("单号格式");
         vo.setLow(vo.getConfidence() < LOW_CONFIDENCE);
         return vo;
+    }
+
+    /** G5：模式库自动应用——命中历史校正/确认的名称则自动改名并提升置信度 */
+    private void applyPatternCorrections(List<EngineCandidateVO> candidates) {
+        if (patternLibraryService == null) {
+            return;
+        }
+        for (EngineCandidateVO c : candidates) {
+            List<PatternLibrary> hits = patternLibraryService.findPatterns("NODE_NAME", c.getName());
+            if (hits == null || hits.isEmpty()) {
+                continue;
+            }
+            PatternLibrary p = hits.get(0);
+            if (p.getPatternValue() != null && !p.getPatternValue().isBlank()
+                    && !p.getPatternValue().equals(c.getName())) {
+                c.setName(p.getPatternValue());
+                c.getMarks().add("模式校正");
+                c.setConfidence(Math.min(c.getConfidence() + 5, 100));
+                c.setLow(c.getConfidence() < LOW_CONFIDENCE);
+            }
+            patternLibraryService.hit(p);
+        }
     }
 
     /** 排除元数据/内部表（不会当成业务表）。

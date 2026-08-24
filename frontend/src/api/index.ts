@@ -7,10 +7,31 @@
    ============================================================ */
 
 import type {
-  AlertItem, CandidateNode, Checkpoint, ConnectorSavePayload, ConnectorTestResult, DashboardStats,
-  DataSourceConnector, EngineDraft, EngineRefineResult, GraphEdge, GraphNode, HealthInfo, Instance,
-  LoginResult, ProcessDef, Route, TableInfo, TablePreview, VersionRecord,
+  AlertItem, CandidateNode, Checkpoint, ConnectorSavePayload, ConnectorTestResult, CorrectionPayload,
+  CorrectionRecord, DashboardStats, DataSourceConnector, EngineDraft, EngineRefineResult, GraphEdge,
+  GraphNode, HealthInfo, Instance, Level, LoginResult, Pattern, PatternPayload, ProcessDef, Route, TableInfo,
+  TablePreview, Ticket, TicketPayload, VersionRecord,
 } from '@/types';
+
+/** 保存流程请求体 */
+export interface ProcessSavePayload {
+  name: string;
+  scene?: 'DATA' | 'BUSINESS' | 'MANUFACTURING';
+  level?: Level;
+  description?: string;
+  startNodeId?: number;
+  endNodeId?: number;
+}
+
+/** 保存检测点请求体 */
+export interface CheckpointSavePayload {
+  nodeId: number;
+  name: string;
+  checkType: string;
+  kind?: 'DEFAULT' | 'CUSTOM';
+  freq?: string;
+  level?: Level;
+}
 
 // ============================================================
 // 鉴权：token 存取 / 登录 / 当前用户
@@ -80,6 +101,30 @@ export async function fetchEdges(): Promise<GraphEdge[]> {
 export async function fetchProcesses(): Promise<ProcessDef[]> {
   return unwrap<ProcessDef[]>(await apiFetch('/api/processes'));
 }
+/** 新建流程 */
+export async function createProcess(payload: ProcessSavePayload): Promise<ProcessDef> {
+  const res = await apiFetch('/api/processes', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  return unwrap<ProcessDef>(res);
+}
+/** 更新流程 */
+export async function updateProcess(id: string, payload: ProcessSavePayload): Promise<ProcessDef> {
+  const res = await apiFetch(`/api/processes/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  return unwrap<ProcessDef>(res);
+}
+/** 删除流程 */
+export async function deleteProcess(id: string): Promise<void> {
+  const res = await apiFetch(`/api/processes/${id}`, { method: 'DELETE' });
+  await unwrap<void>(res);
+}
+
 export async function fetchRoutes(): Promise<Route[]> {
   return unwrap<Route[]>(await apiFetch('/api/routes'));
 }
@@ -92,6 +137,12 @@ export async function fetchVersions(
   if (targetType) qs.set('targetType', targetType);
   const res = await apiFetch(`/api/versions?${qs.toString()}`);
   return unwrap<{ records: VersionRecord[]; total: number }>(res);
+}
+
+/** 版本回滚：复制指定版本内容生成新的已发布版本 */
+export async function rollbackVersion(id: string): Promise<VersionRecord> {
+  const res = await apiFetch(`/api/versions/${id}/rollback`, { method: 'POST' });
+  return unwrap<VersionRecord>(res);
 }
 
 // ============================================================
@@ -159,6 +210,21 @@ export async function updateTicket(id: string, payload: TicketUpdatePayload): Pr
   await unwrap<void>(res);
 }
 
+/** 工单列表 */
+export async function fetchTickets(): Promise<Ticket[]> {
+  return unwrap<Ticket[]>(await apiFetch('/api/tickets'));
+}
+
+/** 创建工单 */
+export async function createTicket(payload: TicketPayload): Promise<Ticket> {
+  const res = await apiFetch('/api/tickets', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  return unwrap<Ticket>(res);
+}
+
 /** 新建告警请求体（type / targetType / targetId / message / severity） */
 export interface AlertCreatePayload {
   type: AlertItem['type'];
@@ -188,6 +254,35 @@ export async function fetchDashboardStats(): Promise<DashboardStats> {
 export async function fetchCheckpoints(nodeId: string): Promise<Checkpoint[]> {
   const res = await apiFetch(`/api/checkpoints?nodeId=${encodeURIComponent(nodeId)}`);
   return unwrap<Checkpoint[]>(res);
+}
+/** 新建检测点 */
+export async function createCheckpoint(payload: CheckpointSavePayload): Promise<Checkpoint> {
+  const res = await apiFetch('/api/checkpoints', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  return unwrap<Checkpoint>(res);
+}
+/** 更新检测点 */
+export async function updateCheckpoint(id: string, payload: CheckpointSavePayload): Promise<Checkpoint> {
+  const res = await apiFetch(`/api/checkpoints/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  return unwrap<Checkpoint>(res);
+}
+/** 删除检测点 */
+export async function deleteCheckpoint(id: string): Promise<void> {
+  const res = await apiFetch(`/api/checkpoints/${id}`, { method: 'DELETE' });
+  await unwrap<void>(res);
+}
+
+/** 立即执行一次检测点 */
+export async function runCheckpoint(id: string): Promise<Checkpoint> {
+  const res = await apiFetch(`/api/checkpoints/${id}/run`, { method: 'POST' });
+  return unwrap<Checkpoint>(res);
 }
 
 /** 上下游追踪（顺藤摸瓜：某节点与其上游 / 下游） */
@@ -379,4 +474,50 @@ export async function postEngineRefine(connectorId: string): Promise<EngineRefin
     body: JSON.stringify({ connectorId: Number(connectorId) }),
   });
   return unwrap<EngineRefineResult>(res);
+}
+
+// ============================================================
+// 图来源 · 人工校正闭环（G5）
+// ============================================================
+
+/** 提交一条校正记录 */
+export async function submitCorrection(data: CorrectionPayload): Promise<CorrectionRecord> {
+  const res = await apiFetch('/api/corrections', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  return unwrap<CorrectionRecord>(res);
+}
+
+/** 查询某对象的校正历史 */
+export async function listCorrections(params: { targetType: string; targetId: string }): Promise<CorrectionRecord[]> {
+  const qs = new URLSearchParams({ targetType: params.targetType, targetId: params.targetId });
+  const res = await apiFetch(`/api/corrections?${qs.toString()}`);
+  return unwrap<CorrectionRecord[]>(res);
+}
+
+/** 确认一条校正生效 */
+export async function confirmCorrection(id: number): Promise<void> {
+  const res = await apiFetch(`/api/corrections/${id}/confirm`, { method: 'POST' });
+  await unwrap<void>(res);
+}
+
+/** 模式库列表（可按类型/关键词过滤） */
+export async function listPatterns(params: { patternType?: string; keyword?: string } = {}): Promise<Pattern[]> {
+  const qs = new URLSearchParams();
+  if (params.patternType) qs.set('patternType', params.patternType);
+  if (params.keyword) qs.set('keyword', params.keyword);
+  const res = await apiFetch(`/api/patterns?${qs.toString()}`);
+  return unwrap<Pattern[]>(res);
+}
+
+/** 沉淀为模式 */
+export async function createPattern(data: PatternPayload): Promise<Pattern> {
+  const res = await apiFetch('/api/patterns', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  return unwrap<Pattern>(res);
 }

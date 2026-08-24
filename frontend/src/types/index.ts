@@ -281,3 +281,102 @@ export interface EngineRefineResult {
   provider: string;                    // noop=未配置大模型 / error=调用异常
   message?: string;
 }
+
+/** 工单 */
+export interface Ticket {
+  id: string;
+  alertId?: string;
+  assignee?: string;
+  priority?: string;
+  status: 'OPEN' | 'PROCESSING' | 'RESOLVED';
+  description?: string;
+  createdAt: string;
+  resolvedAt?: string;
+}
+
+/** 工单创建/更新请求 */
+export interface TicketPayload {
+  alertId?: string;
+  assignee?: string;
+  priority?: string;
+  status?: 'OPEN' | 'PROCESSING' | 'RESOLVED';
+  description?: string;
+}
+
+// ============================================================
+// 图来源 · 人工校正闭环（G5）
+// ============================================================
+
+/** 校正操作类型 */
+export type CorrectionOperation =
+  | 'RENAME'      // 改名
+  | 'CONFIRM'     // 标记正确
+  | 'MERGE'       // 合并到目标
+  | 'ADD'         // 新增
+  | 'DELETE'      // 标记废弃
+  | 'REORDER';    // 排序（路线节点顺序调整）
+
+/** 校正对象类型 */
+export type CorrectionTargetType = 'NODE' | 'EDGE' | 'ROUTE' | 'PATTERN';
+
+/** 校正记录 */
+export interface CorrectionRecord {
+  id: number;
+  targetType: CorrectionTargetType;
+  targetId: string;
+  targetName: string;
+  operation: CorrectionOperation;
+  oldValue?: string;
+  newValue?: string;
+  mergeTargetId?: string;
+  reorderNodeIds?: string[];
+  status: 'PENDING' | 'APPLIED' | 'REJECTED';
+  source: 'ENGINE' | 'LLM' | 'MANUAL';
+  operator?: string;
+  remark?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+/** 提交校正请求体 */
+export interface CorrectionPayload {
+  targetType: CorrectionTargetType;
+  targetId: string;
+  targetName: string;
+  operation: CorrectionOperation;
+  oldValue?: string;
+  newValue?: string;
+  mergeTargetId?: string;
+  reorderNodeIds?: string[];
+  remark?: string;
+  savePattern?: boolean;
+  patternType?: string;
+  patternName?: string;
+  patternDescription?: string;
+}
+
+/** 模式库条目 */
+export interface Pattern {
+  id: number;
+  patternType: string;
+  patternKey: string;
+  patternValue?: string;
+  sourceType?: CorrectionTargetType;
+  sourceId?: string;
+  sourceOperation?: CorrectionOperation;
+  hitCount: number;
+  confirmed: number;
+  createdBy?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+/** 新建模式请求体 */
+export interface PatternPayload {
+  patternType: string;
+  patternKey: string;
+  patternValue?: string;
+  sourceType: CorrectionTargetType;
+  sourceId: string;
+  sourceOperation?: CorrectionOperation;
+}

@@ -6,6 +6,8 @@ import com.datalink.platform.model.dto.VersionVO;
 import com.datalink.platform.model.service.ConfigVersionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -26,5 +28,11 @@ public class VersionController {
                                               @RequestParam(defaultValue = "20") int size,
                                               @RequestParam(required = false) String targetType) {
         return Result.ok(configVersionService.page(page, size, targetType));
+    }
+
+    /** 回滚到指定版本 */
+    @PostMapping("/{id}/rollback")
+    public Result<VersionVO> rollback(@PathVariable Long id) {
+        return Result.ok(configVersionService.rollback(id));
     }
 }

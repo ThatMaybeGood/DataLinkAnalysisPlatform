@@ -163,7 +163,39 @@
 
 ### 待办（下次会话）
 - ⏳ 真实供应商验证：用户提供 key 后设 `LLM_API_KEY`/`LLM_BASE_URL`/`LLM_MODEL` 重启 → POST /api/analyze/refine 看 provider 非 noop + 五类 refinements 齐全 → 切换模型对比
-- G5 校正闭环：校正记录表 + 留存接口 + 模式库沉淀（最简版）
+- ✅ G5 校正闭环：校正记录表 + 留存接口 + 模式库沉淀（最简版）+ 前端校正面板 + 模式库命中自动应用
+
+## 图来源 G5 校正闭环 + 前端操作补齐 + 后端管理接口补强（完成，2026-08-22）
+
+### G5 校正闭环
+- **表结构**：`correction_record`（id/target_type/target_id/op_type/old_value/new_value/operator/status/created_at）+ `pattern_library`（id/pattern_type/pattern_value/confidence/source/created_at）；Flyway V8 同时提供 H2 与 MySQL 版本。
+- **后端端点**：
+  - `POST /api/corrections` 提交校正（RENAME/CONFIRM/MERGE/ADD/DELETE/REORDER）
+  - `GET /api/corrections?targetType=&targetId=` 查询某对象历史
+  - `POST /api/corrections/{id}/confirm` 确认生效
+  - `GET /api/patterns` 模式库列表（支持 patternType/keyword 过滤）
+- **二次识别降校正量**：`EngineAnalyzeService` 在生成候选后查询 `PatternLibraryService`，命中模式时自动应用命名/关系调整，减少后续人工校正量。
+- **前端校正面板**：`GraphSourceView.vue` 对节点/边/路线支持改名/确认/合并/增删/排序；提交后右侧展示校正历史；提交成功 toast 反馈；G2 兜底假数据路径已降级为错误空态（仅在校正接口失败且无数据时提示）。
+
+### 前端操作按钮与缺失页面补齐
+- **实时告警徽标**：`TopNav.vue`/`SideNav.vue` 改接 `GET /api/alerts` 计算未处理数；登录后 dashboard 与导航同步显示「3」。
+- **新增页面**：`InstanceListView.vue`（`/instances`）与 `TicketListView.vue`（`/tickets`）接入真实接口，注册路由与 SideNav。
+- **列表页按钮**：
+  - `ProcessListView`：新建流程/导入/配置/删除
+  - `CheckpointView`：新建检测点/配置/删除/立即检测（浏览器实测创建后运行成功，状态 PASS）
+  - `AlertView`：导出 CSV/新建告警规则/查看详情
+  - `VersionView`：导出记录/查看/对比/审批占位/回滚
+  - `SettingsView`：用户/角色/系统配置调用真实接口或标注占位接口
+
+### 后端管理接口补强
+- **版本回滚**：`ConfigVersionService.rollback(Long versionId)` 复制源版本内容生成新版本并发布，将源版本之后的其他版本标记 `ROLLED_BACK`；`VersionController` 暴露 `POST /api/versions/{id}/rollback`。
+- **检测点立即检测**：`CheckpointService.run(Long id)` 按检测类型模拟/执行检测并写入 `check_result`；`CheckpointController` 暴露 `POST /api/checkpoints/{id}/run`。
+
+### 验证数字（2026-08-22）
+- 后端 `mvn test` 全绿（Flyway V8 自动应用）。
+- 前端 `npm run type-check`/`npm run build` 全绿。
+- 浏览器走查：/instances 6 条、/tickets 3 条、/processes 2 条、/checkpoints 18 站点 + 创建/运行检测点成功、/alerts 5 条、/versions 0 条（无版本记录但页面渲染正常）、/graph-source 入口与校正面板正常。
+- LLM refine：`POST /api/analyze/refine {connectorId:1}` 返回 code=200、provider=noop、base 与引擎一致；未配置 key 仍可用。
 
 ## 图来源 G2 管线原型（2026-08-17 完成 + 复核）
 - **实现**：`frontend/src/views/GraphSourceView.vue`（独立页，无后端依赖，全假数据）+ 路由 `/graph-source` + SideNav「图来源」入口。

@@ -101,7 +101,7 @@ const users: UserItem[] = [
   { name: 'sunlei', displayName: '孙磊', role: 'OPERATOR', status: 'DISABLED', email: 'sunlei@corp.com', lastLogin: '2026-08-10 15:44' },
 ];
 
-/* —— 本地 mock：系统配置 —— */
+/* —— 本地 mock：系统配置（后端暂无系统配置接口，先本地演示） —— */
 const retentionDays = ref('180');
 const alertChannel = ref('站内+邮件');
 const collectMode = ref('特征推断+人工标记');
@@ -109,6 +109,7 @@ const versionKeep = ref('20');
 const savedTip = ref(false);
 
 function saveConfig() {
+  // TODO: 后端补充 /api/system/config 后改为真实接口调用
   savedTip.value = true;
   window.setTimeout(() => (savedTip.value = false), 3000);
 }
@@ -290,7 +291,7 @@ function saveConfig() {
           <button class="btn btn-primary" @click="saveConfig">
             <Icon name="check" :size="14" />保存配置
           </button>
-          <span v-if="savedTip" class="saved-tip"><Icon name="check" :size="14" />已保存（演示）</span>
+          <span v-if="savedTip" class="saved-tip"><Icon name="check" :size="14" />已保存（本地演示，后端接口待实现）</span>
         </div>
       </div>
     </div>

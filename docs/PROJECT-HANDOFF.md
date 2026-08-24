@@ -1,6 +1,6 @@
 # 项目续接文档（HANDOFF）
 
-> 本文件是「对话打包」：**新会话先读本文件即可无缝续接**。主文档是项目文档书 v1.7，本文件用于快速恢复进度、记录已验证事实与下一步起点。
+> 本文件是「对话打包」：**新会话先读本文件即可无缝续接**。主文档是项目文档书 v1.8，本文件用于快速恢复进度、记录已验证事实与下一步起点。
 
 ## 一、这是什么项目
 
@@ -12,7 +12,7 @@
 
 | 文档 | 路径 | 用途 |
 | --- | --- | --- |
-| **项目文档书 v1.7** | `docs/数据关联与业务流程监控分析平台-项目文档书-v1.0.md` | ⭐ 交付基准：14 章 + 4 附录，含完整 DDL/RBAC/用户故事/页面清单 |
+| **项目文档书 v1.8** | `docs/数据关联与业务流程监控分析平台-项目文档书-v1.0.md` | ⭐ 交付基准：14 章 + 4 附录，含完整 DDL/RBAC/用户故事/页面清单 |
 | 讨论草稿 | `docs/superpowers/specs/2026-08-15-数据关联流向分析平台-设计方案.md` | 需求演进过程记录 |
 | 前端说明 | `frontend/README.md`、`frontend/DEPLOY.md` | 前端开发与部署 |
 | 后端说明 | `backend/README.md`、`backend/DEPLOY.md` | **后端开发与部署（含双数据库模式）** |
@@ -149,6 +149,7 @@
 - [x] 项目文档书 v1.5（图来源 G2 管线原型，整体进度 99.4%，图来源 40%）
 - [x] 项目文档书 v1.6（图来源 G3 引擎最小可行版，整体进度 99.6%，图来源 60%）
 - [x] 项目文档书 v1.7（图来源 G4 大模型接入层，整体进度 99.8%，图来源 80%）
+- [x] 项目文档书 v1.8（图来源 G5 校正闭环 + 前端操作补齐，整体进度 100%，图来源 100%）
 
 ### 图来源 G3 引擎最小可行版（✅ 完成，2026-08-18，无头 Chrome 程序化复核全流程真实数据通过）
 - **后端 G3a-G3d ✅ 完成（2026-08-17）**：
@@ -174,6 +175,25 @@
 - **前端（主会话）**：`postEngineRefine` + `RefinementItem/EngineRefineResult` 类型；GraphSourceView **删除 LLM_NODES/LLM_EDGES/LLM_REFINEMENTS 假数据**——细化草稿 = 引擎骨架 applyRename + 增量合并（骨架引用即回退快照，一键回纯引擎）；Noop 时琥珀色提示条「未配置大模型 API Key」+ 徽标「引擎原稿（Noop）」；refine 结果缓存（回退后再细化不重复调接口）；大模型路线直进真实接口
 - **验证**：后端 **24 测试类 94 用例全绿**（新增 4 测试类：装配/解析降级/Service 细化/Controller MockMvc）；`POST /api/analyze/refine {connectorId:1}` 实测 code=200、provider=noop、base 7 节点/10 边/6 候选与引擎一致；无头 Chrome 复核（`.data/g4_llm_verify.py`）Noop 全链路（草稿→细化→回退→作废→大模型路线→人工校正→复位）通过，无假数据残留
 - **待补**：真实供应商验证（DeepSeek/通义）——用户提供 key 后设环境变量重启即可，无需改代码
+
+### 图来源 G5 校正闭环 + 前端操作补齐 + 后端管理接口补强（✅ 完成，2026-08-22）
+- **G5 校正闭环**
+  - 后端：`correction_record`/`pattern_library` 表（Flyway V8）+ `CorrectionRecordController`/`PatternLibraryController`；端点 `POST /api/corrections` 提交校正、`GET /api/corrections?targetType=&targetId=` 查询历史、`POST /api/corrections/{id}/confirm` 确认生效、`GET /api/patterns` 模式库列表；`EngineAnalyzeService` 二次识别引入模式库命中自动应用
+  - 前端：`GraphSourceView.vue` 增加校正面板，支持对节点/边/路线执行改名/确认/合并/增删/排序，调用 `/api/corrections` 提交并展示历史；G2 兜底假数据路径降级为错误空态
+- **前端操作按钮与缺失页面补齐**
+  - `TopNav.vue`/`SideNav.vue`：告警徽标改接真实 `/api/alerts`（实时未处理数）；导航新增「实例」「工单」
+  - 新增 `InstanceListView.vue`（`/instances`）与 `TicketListView.vue`（`/tickets`），注册路由与导航
+  - `ProcessListView.vue`：新建流程/导入/配置/删除弹窗与 API 接线
+  - `CheckpointView.vue`：新建检测点/配置/删除/立即检测真实接线（浏览器实测创建+运行通过）
+  - `AlertView.vue`：导出 CSV/新建告警规则/查看详情弹窗
+  - `VersionView.vue`：导出记录/查看/对比/审批占位/回滚真实接线
+  - `SettingsView.vue`：用户/角色/系统配置调用真实或标注占位接口
+- **后端管理接口与引擎补强**
+  - `ConfigVersionService.rollback(Long versionId)`：复制指定版本内容生成新版本并发布，原后续版本标记 `ROLLED_BACK`
+  - `VersionController`：新增 `POST /api/versions/{id}/rollback`
+  - `CheckpointService.run(Long id)`：立即执行一次检测并写入 `check_result`
+  - `CheckpointController`：新增 `POST /api/checkpoints/{id}/run`
+- **验证**：后端 `mvn test` 全绿；前端 `npm run type-check`/`npm run build` 全绿；浏览器走查实例/工单/流程/检测点/告警/版本/图来源页面通过；检测点创建+立即检测实测成功；LLM 未配置 key 仍走 Noop 兜底
 
 **远程仓库历史**（已推送，最新 11 条）：
 ```
@@ -229,9 +249,9 @@ backend/src/main/resources/
 - MyBatis-Plus 方言：`MybatisPlusConfig` 按 `datalink.db-type` 切换，加 `oracle` 分支即可
 - 此机制针对**平台自身存储库**；数据池连接器（对接外部业务库）属 M1，二者不混
 
-## 六、下一步（图来源 G1~G5 实现）
+## 六、下一步（M0~M4 + 图来源 G1~G5 全部完成）
 
-M0~M4 全部里程碑（含 RBAC、M3 补充、M4 前端增强）均已交付并推送到 GitHub（后端 76 测试全绿，前端 `npm run build` 全绿）。
+M0~M4 全部里程碑（含 RBAC、M3 补充、M4 前端增强）与图来源 G1~G5 均已交付（后端 `mvn test` 全绿，前端 `npm run type-check`/`npm run build` 全绿，浏览器走查通过）。
 
 **图来源 G1~G5**（设计已定稿，按顺序推进）：
 
@@ -239,12 +259,13 @@ M0~M4 全部里程碑（含 RBAC、M3 补充、M4 前端增强）均已交付并
 2. **✅ G2 图来源管线原型**（2026-08-17 完成）：前端交互原型——入口三条路线 → 引擎草稿 → 用户主动选择「够用/加大模型/作废重来」→ 统一人工校正 → 准底图（可回退，主动权在人）
 3. **✅ G3 引擎最小可行版**（2026-08-18 完成）：`/api/analyze` 引擎分析接口——复用连接器连接池扫描 HIS 演示库（启动期种子 + DemoConnectorSeeder 运行时加密），单据模式识别（5 信号打分 + 单号前缀归属判定 + H2 内部表过滤），实测置信度回填（fee_order 85 / reg_order 75 / refund_apply 65 / settle_bill 60 / pay_record 60 / prescription_detail 40），产出草稿 1 库节点 + 6 表节点 + 10 边 + 流程模板「挂号单→收费单→支付流水」；前端 GraphSourceView 接入真实数据（失败兜底假数据 + 错误提示条）；无头 Chrome 程序化复核全流程真实数据通过
 4. **✅ G4 大模型接入层**（2026-08-18 完成，真实供应商验证待 key）：`llm` 包 ModelProvider 可插拔（Noop 兜底 + OpenAI 兼容实现，`datalink.llm.*` 环境变量配置不硬编码）；`POST /api/analyze/refine`（引擎骨架 + 增量 + renameMap + 五类细化清单）；前端删 LLM 假数据改真实接线（骨架改名 + 增量合并 + 一键回退 + Noop 提示条）；后端 24 测试类 94 用例全绿 + 无头 Chrome 复核 Noop 全链路通过。**待补：用户提供 API key 后做真实供应商验证 + 切换模型对比**
-5. **G5 校正闭环**：校正记录留存 + 模式库沉淀（越校越准）
+5. **✅ G5 校正闭环**（2026-08-22 完成）：`correction_record`/`pattern_library` 表 + CorrectionRecordController/PatternLibraryController；提交/查询/确认/模式库端点；前端 GraphSourceView 校正面板支持改名/确认/合并/增删/排序 + 历史记录；模式库命中后二次识别自动应用；浏览器走查通过
 
 **补充功能（可并行）**：
 - 邮件/钉钉通知渠道、定时检测调度、自动动作总开关与可回滚
 - PostgreSQL 实机验证（方言已就绪）、数据池接 Oracle
 - 开放 API Token 管理/轮换页
+- 真实 LLM 供应商验证（待用户 key）
 
 ## 七、用户工作偏好（重要）
 
@@ -256,7 +277,7 @@ M0~M4 全部里程碑（含 RBAC、M3 补充、M4 前端增强）均已交付并
 
 ## 八、续接起点
 
-**当前任务 = 图来源 G1~G5 实现（G1~G4 已完成，G5 待开始）**。M0~M4 全部里程碑（含 RBAC、M3 补充、M4 前端增强）均已交付并推送到 GitHub（后端 24 测试类 94 用例全绿）。
-新会话第一步：读本文档 → `cd backend && mvn spring-boot:run` 起服务 → 浏览器打开 http://localhost:5173 登录（admin/admin123）→ 依次查看 **图来源**（三条路线 + 引擎真实草稿 + 大模型细化 Noop 兜底 + 主动分流 + 人工校正，G1~G4 已全链路）、**关系网画布**（2D/3D 切换、路线过滤、**三层视图切换 数据流/业务流/融合**）、**路径查询地铁图**、**3D 视图**、**大屏**。
-前端已完整可用：登录 + 图来源（G1~G4 全链路，真实引擎草稿 + 大模型细化接口 Noop 兜底）+ 关系网画布（排查/路径/影响面/2D⇄3D/路线过滤/**三层视图**）+ 地铁图 + 3D 视图 + 大屏 + 看板 + 告警 + 检测点 + 版本 + 数据接入（DB+CMDB）+ 系统管理（运行信息/开放 API 卡）。
-**G4 起服务注意**：①旧后端进程若无 G3 种子（连接器表空），需重启 `spring-boot:run` 让 `DemoBizDbInitializer`（`@Order(10)`）+ `DemoConnectorSeeder`（`@Order(20)`）运行，HIS 连接器 id=1 才会出现；②无 `LLM_API_KEY` 时大模型细化走 Noop 兜底（返回引擎原稿 + 提示），配置 `LLM_API_KEY`/`LLM_BASE_URL`/`LLM_MODEL` 环境变量即切真实供应商（DeepSeek 默认）。
+**当前任务 = M0~M4 + 图来源 G1~G5 全部完成**。后端 `mvn test` 全绿，前端 `npm run type-check`/`npm run build` 全绿，浏览器走查通过。
+新会话第一步：读本文档 → `cd backend && mvn spring-boot:run` 起服务 → 浏览器打开 http://localhost:5173 登录（admin/admin123）→ 依次查看 **图来源**（三条路线 + 引擎真实草稿 + 大模型细化 Noop 兜底 + 主动分流 + 人工校正 + **G5 校正面板**，G1~G5 已全链路）、**关系网画布**（2D/3D 切换、路线过滤、**三层视图切换 数据流/业务流/融合**）、**路径查询地铁图**、**3D 视图**、**大屏**、**实例**、**工单**。
+前端已完整可用：登录 + 图来源（G1~G5 全链路，真实引擎草稿 + 大模型细化接口 Noop 兜底 + 校正闭环）+ 关系网画布（排查/路径/影响面/2D⇄3D/路线过滤/**三层视图**）+ 地铁图 + 3D 视图 + 大屏 + 看板 + 告警 + 检测点 + 版本 + 数据接入（DB+CMDB）+ 系统管理（运行信息/开放 API 卡）+ 实例列表 + 工单列表。
+**G4/G5 起服务注意**：①旧后端进程若无 G3 种子（连接器表空），需重启 `spring-boot:run` 让 `DemoBizDbInitializer`（`@Order(10)`）+ `DemoConnectorSeeder`（`@Order(20)`）运行，HIS 连接器 id=1 才会出现；②无 `LLM_API_KEY` 时大模型细化走 Noop 兜底（返回引擎原稿 + 提示），配置 `LLM_API_KEY`/`LLM_BASE_URL`/`LLM_MODEL` 环境变量即切真实供应商（DeepSeek 默认）；③G5 校正记录与模式库表由 Flyway V8 自动创建。

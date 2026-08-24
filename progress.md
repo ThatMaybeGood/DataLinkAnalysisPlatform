@@ -129,6 +129,20 @@
 | G2 确认准底图 | 点「确认并生成准底图」 | toast + confirmed + 复位 | toast 文案 + confirmed=true + 1.8s 复位 | ✅ |
 | 前端构建 | npm run build | 全绿 | 全绿（14.26s） | ✅ |
 
+### 阶段 G5：校正闭环 + 前端操作补齐 + 后端管理接口补强
+- **状态：** complete ✅
+- **开始时间：** 2026-08-22 · **完成时间：** 2026-08-22
+- 执行的操作：
+  - G5 后端：`correction_record`/`pattern_library` 表（Flyway V8）+ `CorrectionRecordController`/`PatternLibraryController`；端点 `POST /api/corrections`、`GET /api/corrections?targetType=&targetId=`、`POST /api/corrections/{id}/confirm`、`GET /api/patterns`；AnalyzeService 二次识别引入模式库命中自动应用
+  - G5 前端：`GraphSourceView.vue` 校正面板支持改名/确认/合并/增删/排序，提交后展示历史；G2 兜底假数据降级为错误空态
+  - 前端补齐：TopNav/SideNav 告警徽标接 `/api/alerts`；新增 `/instances` 与 `/tickets` 页面及导航；ProcessListView/CheckpointView/AlertView/VersionView/SettingsView 操作按钮真实接线
+  - 后端补强：`ConfigVersionService.rollback` + `POST /api/versions/{id}/rollback`；`CheckpointService.run` + `POST /api/checkpoints/{id}/run`
+  - 验证：后端 `mvn test` 全绿；前端 `npm run type-check`/`npm run build` 全绿；浏览器走查实例/工单/流程/检测点/告警/版本/图来源通过；检测点创建+立即检测实测成功；LLM refine 未配置 key 走 Noop 兜底，接口 200
+- 创建/修改的文件：
+  - backend：`model` 包 correction/pattern 实体/Mapper/Service/Controller + Flyway V8；`ConfigVersionService`/`VersionController` 回滚；`CheckpointService`/`CheckpointController` 立即检测
+  - frontend：`GraphSourceView.vue` 校正面板；`InstanceListView.vue`/`TicketListView.vue`；`TopNav.vue`/`SideNav.vue` 告警徽标；`ProcessListView.vue`/`CheckpointView.vue`/`AlertView.vue`/`VersionView.vue`/`SettingsView.vue` 按钮接线；`api/index.ts`/`types/index.ts`/`router/index.ts`
+  - docs：项目文档书 v1.8、HANDOFF、task_plan.md、findings.md、progress.md
+
 ## 错误日志
 | 时间戳 | 错误 | 尝试次数 | 解决方案 |
 |--------|------|---------|---------|
@@ -137,11 +151,11 @@
 ## 五问重启检查
 | 问题 | 答案 |
 |------|------|
-| 我在哪里？ | 阶段 G5（校正闭环，后端）待开始——G4 大模型接入层已完成（真实供应商验证待 key） |
-| 我要去哪里？ | G5 闭环 → 文档同步 + 推送 |
-| 目标是什么？ | 图来源 G1~G5 全部落地 + 文档进度同步 |
-| 我学到了什么？ | 见 findings.md（G4 llm 包契约 + Noop 兜底模式 + CDP 复核数字已更新） |
-| 我做了什么？ | G1~G4 完成：三层视图 + 管线原型 + 引擎最小可行版 + 大模型接入层（可插拔 Provider + refine 接口 + 前端真实接线），后端 24 测试类 94 用例全绿 + 文档第 0 章 v1.7 |
+| 我在哪里？ | M0~M4 + 图来源 G1~G5 全部完成（2026-08-22）；LLM 真实供应商验证仍待用户提供 API key |
+| 我要去哪里？ | 远期补充功能 / 真实 LLM 验证 / 用户新需求 |
+| 目标是什么？ | 当前阶段目标已达成：图来源 G1~G5 全部落地 + 文档进度同步 |
+| 我学到了什么？ | 见 findings.md（G4 llm 包契约 + Noop 兜底模式；G5 校正记录/模式库设计） |
+| 我做了什么？ | G1~G5 完成：三层视图 + 管线原型 + 引擎最小可行版 + 大模型接入层 + 校正闭环；前端操作按钮/缺失页面补齐；后端版本回滚/检测点立即检测补强；后端 `mvn test` 全绿、前端 type-check/build 全绿、浏览器走查通过 |
 
 ---
 *每个阶段完成后或遇到错误时更新此文件*

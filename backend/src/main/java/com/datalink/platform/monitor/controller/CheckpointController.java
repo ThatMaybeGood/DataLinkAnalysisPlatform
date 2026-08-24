@@ -52,4 +52,10 @@ public class CheckpointController {
         checkpointService.delete(id);
         return Result.ok();
     }
+
+    /** 立即执行一次检测 */
+    @PostMapping("/{id}/run")
+    public Result<CheckpointVO> run(@PathVariable Long id) {
+        return Result.ok(checkpointService.run(id));
+    }
 }

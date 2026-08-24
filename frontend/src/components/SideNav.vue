@@ -1,12 +1,23 @@
 <script setup lang="ts">
 import { useRoute } from 'vue-router';
 import { useRouter } from 'vue-router';
-import { computed, ref } from 'vue';
-import { mockAlerts } from '@/api/mockData';
+import { computed, onMounted, ref } from 'vue';
+import { fetchAlerts } from '@/api';
+import type { AlertItem } from '@/types';
 
 const route = useRoute();
 const router = useRouter();
-const openCount = computed(() => mockAlerts.filter((a) => a.status === 'OPEN').length);
+const alerts = ref<AlertItem[]>([]);
+const openCount = computed(() => alerts.value.filter((a) => a.status === 'OPEN').length);
+
+async function loadAlerts() {
+  try {
+    alerts.value = await fetchAlerts();
+  } catch {
+    // 后端不可用时静默降级
+  }
+}
+onMounted(loadAlerts);
 
 const menus = [
   { path: '/', label: '工作台', icon: 'activity' },
@@ -14,9 +25,11 @@ const menus = [
   { path: '/graph-source', label: '图来源', icon: 'target' },
   { path: '/3d', label: '3D 视图', icon: 'box' },
   { path: '/processes', label: '流程列表', icon: 'process' },
+  { path: '/instances', label: '实例', icon: 'activity' },
   { path: '/data-sources', label: '数据接入', icon: 'database' },
   { path: '/checkpoints', label: '检测点', icon: 'target' },
   { path: '/alerts', label: '告警中心', icon: 'alert', badge: openCount },
+  { path: '/tickets', label: '工单', icon: 'book' },
   { path: '/bigscreen', label: '大屏', icon: 'fullscreen' },
   { path: '/versions', label: '配置版本', icon: 'history' },
   { path: '/settings', label: '系统管理', icon: 'shield' },

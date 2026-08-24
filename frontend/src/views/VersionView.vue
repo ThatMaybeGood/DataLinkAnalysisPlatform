@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /** 配置版本页：真实 /api/versions 分页展示；对象类型走服务端筛选，状态走客户端筛选 */
 import { computed, onMounted, ref } from 'vue';
-import { fetchVersions } from '@/api';
+import { fetchVersions, rollbackVersion } from '@/api';
 import type { VersionRecord } from '@/types';
 import Tag from '@/components/Tag.vue';
 import Icon from '@/components/Icon.vue';
@@ -36,6 +36,8 @@ const page = ref(1);
 const size = 10;
 const loading = ref(true);
 const loadError = ref('');
+const toast = ref('');
+const actingId = ref('');
 
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / size)));
 /** 状态为客户端过滤（作用于当前页数据） */
@@ -69,6 +71,72 @@ function onTypeChange() {
 }
 
 onMounted(loadVersions);
+
+function showToast(message: string) {
+  toast.value = message;
+  window.setTimeout(() => (toast.value = ''), 2000);
+}
+
+/** 导出记录 CSV */
+function exportRecords() {
+  const rows = filtered.value.map((v) => ({
+    对象类型: targetTypeLabel[v.targetType] ?? v.targetType,
+    对象名: v.targetName,
+    版本号: `v${v.version}`,
+    操作人: v.operator,
+    改动说明: v.changeNote,
+    状态: v.status,
+    时间: v.time,
+  }));
+  if (rows.length === 0) {
+    showToast('没有可导出的记录');
+    return;
+  }
+  const headers = Object.keys(rows[0]);
+  const csv = [headers.join(','), ...rows.map((r) => headers.map((h) => `"${String((r as Record<string, string>)[h]).replace(/"/g, '""')}"`).join(','))].join('\n');
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `versions_${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('版本记录已导出');
+}
+
+/** 查看详情 */
+const viewing = ref<VersionRecord | null>(null);
+
+/** 对比（占位） */
+function compare(item: VersionRecord) {
+  showToast(`对比功能待后端提供版本快照：${item.targetName} v${item.version}`);
+}
+
+/** 审批（占位） */
+async function approve(item: VersionRecord) {
+  actingId.value = item.id;
+  try {
+    // 后端暂无审批端点，先占位提示
+    await new Promise((r) => setTimeout(r, 300));
+    showToast(`「${item.targetName}」已审批（演示）`);
+  } finally {
+    actingId.value = '';
+  }
+}
+
+/** 重新发布 / 回滚 */
+async function republish(item: VersionRecord) {
+  actingId.value = item.id;
+  try {
+    await rollbackVersion(item.id);
+    await loadVersions();
+    showToast(`「${item.targetName}」已回滚并重新发布`);
+  } catch (err) {
+    loadError.value = err instanceof Error ? err.message : '回滚失败';
+  } finally {
+    actingId.value = '';
+  }
+}
 </script>
 
 <template>
@@ -79,8 +147,14 @@ onMounted(loadVersions);
         <div class="page-subtitle">全平台配置留痕：可对比、可回滚、高等级变更需审批</div>
       </div>
       <div class="page-actions">
-        <button class="btn btn-outline btn-sm"><Icon name="export" :size="14" />导出记录</button>
+        <button class="btn btn-outline btn-sm" @click="exportRecords">
+          <Icon name="export" :size="14" />导出记录
+        </button>
       </div>
+    </div>
+
+    <div v-if="toast" class="toast">
+      <Icon name="check" :size="14" />{{ toast }}
     </div>
 
     <!-- 顶部说明条 -->
@@ -147,10 +221,19 @@ onMounted(loadVersions);
               <td><span class="cell-mono">{{ item.time }}</span></td>
               <td>
                 <div class="row ops">
-                  <button class="btn btn-outline btn-sm">查看</button>
-                  <button class="btn btn-ghost btn-sm">对比</button>
-                  <button v-if="item.status === 'PENDING_APPROVAL'" class="btn btn-primary btn-sm">审批</button>
-                  <button v-else-if="item.status === 'ROLLED_BACK'" class="btn btn-danger btn-sm">重新发布</button>
+                  <button class="btn btn-outline btn-sm" @click="viewing = item">查看</button>
+                  <button class="btn btn-ghost btn-sm" @click="compare(item)">对比</button>
+                  <button
+                    v-if="item.status === 'PENDING_APPROVAL'" class="btn btn-primary btn-sm"
+                    :disabled="actingId === item.id"
+                    @click="approve(item)"
+                  >{{ actingId === item.id ? '处理中…' : '审批' }}</button>
+                  <button
+                    v-else-if="item.status === 'ROLLED_BACK'" class="btn btn-danger btn-sm"
+                    :disabled="actingId === item.id"
+                    @click="republish(item)"
+                  >{{ actingId === item.id ? '处理中…' : '重新发布' }}
+                  </button>
                 </div>
               </td>
             </tr>
@@ -172,6 +255,60 @@ onMounted(loadVersions);
         </div>
       </template>
     </div>
+
+    <!-- 查看详情弹窗 -->
+    <div v-if="viewing" class="modal-overlay" @click.self="viewing = null">
+      <div class="modal modal--sm">
+        <div class="modal-header">
+          <div class="modal-title">版本详情</div>
+          <button class="btn btn-ghost btn-sm" @click="viewing = null">关闭</button>
+        </div>
+        <div class="modal-body">
+          <div class="detail-row">
+            <span class="detail-label">对象类型</span>
+            <span class="tag tag--neutral">{{ targetTypeLabel[viewing.targetType] ?? viewing.targetType }}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">对象名</span>
+            <span class="cell-strong">{{ viewing.targetName }}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">版本号</span>
+            <span class="cell-mono">v{{ viewing.version }}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">操作人</span>
+            <span>{{ viewing.operator }}</span>
+          </div>
+          <div class="detail-row detail-row--block">
+            <span class="detail-label">改动说明</span>
+            <span>{{ viewing.changeNote }}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">状态</span>
+            <Tag :status="viewing.status" />
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">时间</span>
+            <span class="cell-mono">{{ viewing.time }}</span>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline" @click="viewing = null">关闭</button>
+          <button
+            v-if="viewing.status === 'PENDING_APPROVAL'" class="btn btn-primary"
+            :disabled="actingId === viewing.id"
+            @click="approve(viewing); viewing = null"
+          >{{ actingId === viewing.id ? '处理中…' : '审批' }}</button>
+          <button
+            v-else-if="viewing.status === 'ROLLED_BACK'" class="btn btn-danger"
+            :disabled="actingId === viewing.id"
+            @click="republish(viewing); viewing = null"
+          >{{ actingId === viewing.id ? '处理中…' : '重新发布' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -184,9 +321,50 @@ onMounted(loadVersions);
   display: inline-block; max-width: 280px; vertical-align: middle;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.ops { white-space: nowrap; }
+.ops { white-space: nowrap; gap: 6px; }
 .pagination {
   display: flex; align-items: center; justify-content: flex-end; gap: 8px;
   padding: 12px 16px; border-top: 1px solid var(--border);
 }
+.toast {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 12px; margin-bottom: 12px;
+  color: var(--success); background: var(--success-soft);
+  border-radius: var(--radius-sm); font-size: 13px;
+}
+
+/* 弹窗 */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 50;
+  background: rgba(0, 0, 0, .45);
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+}
+.modal {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); width: 460px; max-width: 100%;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, .2);
+}
+.modal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px; border-bottom: 1px solid var(--border);
+}
+.modal-title { font-weight: 600; }
+.modal-body { padding: 20px; }
+.modal-footer {
+  display: flex; justify-content: flex-end; gap: 10px;
+  padding: 14px 20px; border-top: 1px solid var(--border);
+}
+.detail-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 8px 0; border-bottom: 1px solid var(--border);
+}
+.detail-row:last-child { border-bottom: none; }
+.detail-row--block { flex-direction: column; align-items: flex-start; gap: 6px; }
+.detail-label { font-size: 12px; color: var(--fg-faint); min-width: 70px; }
+.btn-danger {
+  background: var(--danger-soft); color: var(--danger);
+  border: 1px solid rgba(220, 38, 38, 0.35);
+}
+.btn-danger:hover { background: var(--danger); color: #fff; }
 </style>

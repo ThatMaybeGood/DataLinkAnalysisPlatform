@@ -9,6 +9,8 @@
 - Pinia（状态）、Vue Router（路由）
 - 深色侧边栏 + 浅色内容区 + 科技蓝强调色
 
+当前 `src/api/index.ts` 已实现真实后端调用（`/api/...`），开发服务器通过 Vite 代理到后端（默认 `localhost:28080`）。`src/api/mockData.ts` 仅保留少量兜底/演示数据，不再作为默认数据源。
+
 ## 快速开始
 
 ```bash
@@ -30,12 +32,12 @@ npm run preview
 ```
 frontend/
 ├── index.html
-├── vite.config.ts            # 构建/开发代理（/api → localhost:8080）
+├── vite.config.ts            # 构建/开发代理（/api → localhost:28080，与 backend/application.yml 对齐）
 ├── public/favicon.svg
 └── src/
     ├── main.ts               # 入口
     ├── App.vue
-    ├── router/index.ts       # 路由（8 个页面）
+    ├── router/index.ts       # 路由（14+ 个页面）
     ├── styles/
     │   ├── tokens.css        # 设计令牌（颜色/间距/圆角等 CSS 变量）
     │   └── global.css        # 全局组件类（按钮/表格/卡片/表单…）
@@ -55,7 +57,12 @@ frontend/
     └── views/
         ├── DashboardView.vue    # 工作台
         ├── GraphView.vue        # ⭐ 关系网（核心页）
+        ├── GraphSourceView.vue  # ⭐ 图来源（引擎/大模型/人工三路线 + G5 校正面板）
+        ├── Graph3DView.vue      # 3D 视图
+        ├── BigScreenView.vue    # 深色科技大屏
         ├── ProcessListView.vue  # 流程列表
+        ├── InstanceListView.vue # 实例列表
+        ├── TicketListView.vue   # 工单列表
         ├── DataSourceView.vue   # 数据接入
         ├── CheckpointView.vue   # 检测点
         ├── AlertView.vue        # 告警中心
@@ -65,7 +72,7 @@ frontend/
 
 ## Mock 与真实 API
 
-当前 `src/api/index.ts` 全部返回 Mock 数据，便于前端独立演示。后端（Spring Boot）就绪后，把该文件里的函数逐个替换为 `fetch('/api/...')` 即可，函数签名与返回类型不变，页面无需改动。
+`src/api/index.ts` 已实现真实后端调用，函数签名与返回类型保持与页面契约一致。`src/api/mockData.ts` 仅保留兜底/演示数据，在接口失败或独立演示时使用。
 
 ## 代码约定
 

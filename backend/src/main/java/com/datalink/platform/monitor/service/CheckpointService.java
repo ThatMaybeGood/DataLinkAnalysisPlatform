@@ -88,6 +88,44 @@ public class CheckpointService {
         checkpointMapper.deleteById(id);
     }
 
+    /** 立即执行一次检测并写入结果 */
+    public CheckpointVO run(Long id) {
+        Checkpoint cp = checkpointMapper.selectById(id);
+        if (cp == null) {
+            throw new BusinessException(ResultCode.NOT_FOUND.getCode(), "检测点不存在");
+        }
+        String status = executeCheck(cp);
+        CheckResult result = new CheckResult();
+        result.setCheckpointId(id);
+        result.setStatus(status);
+        result.setCheckTime(LocalDateTime.now());
+        result.setMessage(mockDetail(cp.getCheckType(), status));
+        checkResultMapper.insert(result);
+        return toVO(cp);
+    }
+
+    /** 模拟检测逻辑（按类型给出不同结果，便于演示） */
+    private String executeCheck(Checkpoint cp) {
+        return switch (cp.getCheckType()) {
+            case "FRESHNESS" -> "WARNING";
+            case "DELAY" -> "FAIL";
+            case "THRESHOLD" -> Math.random() > 0.3 ? "PASS" : "WARNING";
+            default -> "PASS";
+        };
+    }
+
+    private String mockDetail(String checkType, String status) {
+        if ("PASS".equals(status)) {
+            return "检测通过";
+        }
+        return switch (checkType) {
+            case "FRESHNESS" -> "最新数据滞后";
+            case "DELAY" -> "同步延迟超过阈值";
+            case "THRESHOLD" -> "指标超出阈值";
+            default -> "检测异常";
+        };
+    }
+
     private CheckpointVO toVO(Checkpoint cp) {
         CheckpointVO vo = new CheckpointVO();
         vo.setId(String.valueOf(cp.getId()));

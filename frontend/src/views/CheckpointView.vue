@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /** 检测点：站点上的哨兵——左侧站点列表，点击查看该站点检测点清单 */
 import { computed, onMounted, ref } from 'vue';
-import { fetchCheckpoints, fetchNodes } from '@/api';
+import { createCheckpoint, deleteCheckpoint, fetchCheckpoints, fetchNodes, runCheckpoint, updateCheckpoint } from '@/api';
 import { nodeTypeLabel } from '@/api/mockData';
 import type { Checkpoint, GraphNode } from '@/types';
 import Icon from '@/components/Icon.vue';
@@ -15,6 +15,8 @@ const loading = ref(true);
 const loadError = ref('');
 const cpLoading = ref(false);
 const cpError = ref('');
+const toast = ref('');
+const actionLoading = ref('');
 
 const keyword = ref('');
 const statusFilter = ref('');
@@ -81,6 +83,112 @@ const kindMeta: Record<string, { label: string; cls: string }> = {
 const nodeDot: Record<string, string> = {
   ACTIVE: 'dot--ok', WARNING: 'dot--warn', FAIL: 'dot--fail', DISABLED: 'dot--off',
 };
+
+function showToast(message: string) {
+  toast.value = message;
+  window.setTimeout(() => (toast.value = ''), 2000);
+}
+
+/* —— 新建检测点 —— */
+const showCreate = ref(false);
+const newCp = ref({
+  name: '',
+  checkType: 'SERVICE_STATUS',
+  kind: 'CUSTOM' as Checkpoint['kind'],
+  freq: '5m',
+  level: 'L3' as GraphNode['level'],
+});
+const checkTypeOptions = ['SERVICE_STATUS', 'DATA_VOLUME', 'FRESHNESS', 'DELAY', 'THRESHOLD', 'SQL', 'ACTION_STATUS'];
+
+async function handleCreate() {
+  if (!selectedNode.value || !newCp.value.name.trim()) return;
+  actionLoading.value = 'create';
+  try {
+    await createCheckpoint({
+      nodeId: Number(selectedNode.value.id),
+      name: newCp.value.name,
+      checkType: newCp.value.checkType,
+      kind: newCp.value.kind,
+      freq: newCp.value.freq,
+      level: newCp.value.level,
+    });
+    showCreate.value = false;
+    newCp.value = { name: '', checkType: 'SERVICE_STATUS', kind: 'CUSTOM', freq: '5m', level: 'L3' };
+    await selectNode(selectedNode.value);
+    showToast('检测点已创建');
+  } catch (err) {
+    cpError.value = err instanceof Error ? err.message : '创建失败';
+  } finally {
+    actionLoading.value = '';
+  }
+}
+
+/* —— 配置（编辑）检测点 —— */
+const editing = ref<Checkpoint | null>(null);
+const editForm = ref({ name: '', checkType: 'SERVICE_STATUS', kind: 'CUSTOM' as Checkpoint['kind'], freq: '5m', level: 'L3' as GraphNode['level'] });
+
+function openEdit(cp: Checkpoint) {
+  editing.value = cp;
+  editForm.value = {
+    name: cp.name,
+    checkType: cp.checkType,
+    kind: cp.kind,
+    freq: '5m',
+    level: 'L3',
+  };
+}
+
+async function handleEdit() {
+  if (!editing.value || !selectedNode.value || !editForm.value.name.trim()) return;
+  actionLoading.value = 'edit';
+  try {
+    await updateCheckpoint(editing.value.id, {
+      nodeId: Number(selectedNode.value.id),
+      name: editForm.value.name,
+      checkType: editForm.value.checkType,
+      kind: editForm.value.kind,
+      freq: editForm.value.freq,
+      level: editForm.value.level,
+    });
+    editing.value = null;
+    await selectNode(selectedNode.value);
+    showToast('检测点已更新');
+  } catch (err) {
+    cpError.value = err instanceof Error ? err.message : '更新失败';
+  } finally {
+    actionLoading.value = '';
+  }
+}
+
+async function handleDelete(cp: Checkpoint) {
+  if (!selectedNode.value || !confirm(`确定删除检测点「${cp.name}」？`)) return;
+  actionLoading.value = `del-${cp.id}`;
+  try {
+    await deleteCheckpoint(cp.id);
+    await selectNode(selectedNode.value);
+    showToast('检测点已删除');
+  } catch (err) {
+    cpError.value = err instanceof Error ? err.message : '删除失败';
+  } finally {
+    actionLoading.value = '';
+  }
+}
+
+/* —— 立即检测 —— */
+const runningId = ref('');
+async function handleRun(cp: Checkpoint) {
+  if (!selectedNode.value) return;
+  runningId.value = cp.id;
+  try {
+    await runCheckpoint(cp.id);
+    await selectNode(selectedNode.value);
+    showToast(`「${cp.name}」检测完成`);
+  } catch (err) {
+    cpError.value = err instanceof Error ? err.message : '检测执行失败';
+  } finally {
+    runningId.value = '';
+  }
+}
 </script>
 
 <template>
@@ -91,7 +199,7 @@ const nodeDot: Record<string, string> = {
         <p class="page-subtitle">站点上的哨兵：左侧选择站点，查看其检测点清单</p>
       </div>
       <div class="page-actions">
-        <button class="btn btn-primary">
+        <button class="btn btn-primary" :disabled="!selectedNode" @click="showCreate = true">
           <Icon name="plus" :size="15" />新建检测点
         </button>
       </div>
@@ -105,6 +213,10 @@ const nodeDot: Record<string, string> = {
     </div>
 
     <template v-else>
+      <div v-if="toast" class="toast">
+        <Icon name="check" :size="14" />{{ toast }}
+      </div>
+
       <div class="stat-grid mb-md">
         <StatCard label="检测点总数" :value="total" :sub="`站点：${selectedNode?.name ?? '—'}`" icon="target" />
         <StatCard label="异常 / 失败" :value="abnormal" sub="需关注的检测项" icon="alert" color="danger" />
@@ -181,7 +293,7 @@ const nodeDot: Record<string, string> = {
                     <th>检测类型</th>
                     <th>状态</th>
                     <th>最近检测时间</th>
-                    <th>操作</th>
+                    <th class="text-right">操作</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -192,9 +304,14 @@ const nodeDot: Record<string, string> = {
                     <td><Tag :status="item.status" /></td>
                     <td class="cell-muted">{{ item.lastCheck }}</td>
                     <td>
-                      <div class="row">
-                        <button class="btn btn-ghost btn-sm">配置</button>
-                        <button class="btn btn-outline btn-sm">立即检测</button>
+                      <div class="row ops">
+                        <button class="btn btn-ghost btn-sm" @click="openEdit(item)">配置</button>
+                        <button
+                          class="btn btn-outline btn-sm"
+                          :disabled="runningId === item.id"
+                          @click="handleRun(item)"
+                        >{{ runningId === item.id ? '检测中…' : '立即检测' }}</button>
+                        <button class="btn btn-danger btn-sm" :disabled="actionLoading === `del-${item.id}`" @click="handleDelete(item)">删除</button>
                       </div>
                     </td>
                   </tr>
@@ -211,6 +328,106 @@ const nodeDot: Record<string, string> = {
         </div>
       </div>
     </template>
+
+    <!-- 新建检测点弹窗 -->
+    <div v-if="showCreate" class="modal-overlay" @click.self="showCreate = false">
+      <div class="modal">
+        <div class="modal-header">
+          <div class="modal-title">新建检测点 · {{ selectedNode?.name }}</div>
+          <button class="btn btn-ghost btn-sm" @click="showCreate = false">关闭</button>
+        </div>
+        <div class="modal-body">
+          <div class="field">
+            <label class="label">检测点名称 *</label>
+            <input v-model="newCp.name" class="input" placeholder="如：服务状态" />
+          </div>
+          <div class="grid form-grid">
+            <div class="field">
+              <label class="label">检测类型</label>
+              <select v-model="newCp.checkType" class="select">
+                <option v-for="t in checkTypeOptions" :key="t" :value="t">{{ t }}</option>
+              </select>
+            </div>
+            <div class="field">
+              <label class="label">类型</label>
+              <select v-model="newCp.kind" class="select">
+                <option value="DEFAULT">默认</option>
+                <option value="CUSTOM">自定义</option>
+              </select>
+            </div>
+            <div class="field">
+              <label class="label">频率</label>
+              <input v-model="newCp.freq" class="input" placeholder="5m" />
+            </div>
+            <div class="field">
+              <label class="label">等级</label>
+              <select v-model="newCp.level" class="select">
+                <option value="L1">L1</option>
+                <option value="L2">L2</option>
+                <option value="L3">L3</option>
+                <option value="L4">L4</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline" @click="showCreate = false">取消</button>
+          <button class="btn btn-primary" :disabled="actionLoading === 'create' || !newCp.name.trim()" @click="handleCreate">
+            {{ actionLoading === 'create' ? '保存中…' : '创建' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 配置检测点弹窗 -->
+    <div v-if="editing" class="modal-overlay" @click.self="editing = null">
+      <div class="modal">
+        <div class="modal-header">
+          <div class="modal-title">配置检测点 · {{ editing.name }}</div>
+          <button class="btn btn-ghost btn-sm" @click="editing = null">关闭</button>
+        </div>
+        <div class="modal-body">
+          <div class="field">
+            <label class="label">检测点名称</label>
+            <input v-model="editForm.name" class="input" />
+          </div>
+          <div class="grid form-grid">
+            <div class="field">
+              <label class="label">检测类型</label>
+              <select v-model="editForm.checkType" class="select">
+                <option v-for="t in checkTypeOptions" :key="t" :value="t">{{ t }}</option>
+              </select>
+            </div>
+            <div class="field">
+              <label class="label">类型</label>
+              <select v-model="editForm.kind" class="select">
+                <option value="DEFAULT">默认</option>
+                <option value="CUSTOM">自定义</option>
+              </select>
+            </div>
+            <div class="field">
+              <label class="label">频率</label>
+              <input v-model="editForm.freq" class="input" placeholder="5m" />
+            </div>
+            <div class="field">
+              <label class="label">等级</label>
+              <select v-model="editForm.level" class="select">
+                <option value="L1">L1</option>
+                <option value="L2">L2</option>
+                <option value="L3">L3</option>
+                <option value="L4">L4</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline" @click="editing = null">取消</button>
+          <button class="btn btn-primary" :disabled="actionLoading === 'edit' || !editForm.name.trim()" @click="handleEdit">
+            {{ actionLoading === 'edit' ? '保存中…' : '保存' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -257,4 +474,49 @@ const nodeDot: Record<string, string> = {
 .dot--warn { background: var(--warning); }
 .dot--fail { background: var(--danger); }
 .dot--off { background: var(--fg-faint); }
+
+.ops { white-space: nowrap; gap: 6px; }
+.toast {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 12px; margin-bottom: 12px;
+  color: var(--success); background: var(--success-soft);
+  border-radius: var(--radius-sm); font-size: 13px;
+}
+
+/* 弹窗 */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 50;
+  background: rgba(0, 0, 0, .45);
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+}
+.modal {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); width: 520px; max-width: 100%;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, .2);
+}
+.modal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px; border-bottom: 1px solid var(--border);
+}
+.modal-title { font-weight: 600; }
+.modal-body { padding: 20px; }
+.modal-footer {
+  display: flex; justify-content: flex-end; gap: 10px;
+  padding: 14px 20px; border-top: 1px solid var(--border);
+}
+.form-grid { grid-template-columns: repeat(2, 1fr); gap: 16px; }
+.field { margin-bottom: 14px; }
+.field:last-child { margin-bottom: 0; }
+.label { display: block; font-size: 12px; color: var(--fg-muted); margin-bottom: 6px; }
+.input, .select {
+  width: 100%; padding: 8px 10px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border); background: var(--surface);
+  color: var(--fg); font-size: 13px;
+}
+.btn-danger {
+  background: var(--danger-soft); color: var(--danger);
+  border: 1px solid rgba(220, 38, 38, 0.35);
+}
+.btn-danger:hover { background: var(--danger); color: #fff; }
 </style>
