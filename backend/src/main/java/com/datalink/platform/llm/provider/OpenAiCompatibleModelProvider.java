@@ -2,8 +2,8 @@ package com.datalink.platform.llm.provider;
 
 import com.datalink.platform.engine.dto.EngineCandidateVO;
 import com.datalink.platform.engine.dto.EngineFlowVO;
-import com.datalink.platform.llm.config.LlmProperties;
 import com.datalink.platform.llm.dto.LlmRefineRequest;
+import com.datalink.platform.llm.dto.LlmSettingsView;
 import com.datalink.platform.llm.dto.LlmRefineResult;
 import com.datalink.platform.llm.dto.RefinementItem;
 import com.datalink.platform.model.dto.EdgeVO;
@@ -24,8 +24,8 @@ import java.util.Map;
 /**
  * OpenAI 兼容协议 Provider（DeepSeek / 通义千问等 chat completions 接口通用）。
  *
- * <p>普通类，Bean 由 LlmConfig 装配（仅当 datalink.llm.api-key 非空）。
- * 任何异常均降级为 error refinement，绝不抛出。
+ * <p>普通类，由 RuntimeModelProvider 按当前生效配置（LlmSettingsView 快照）每次构造，
+ * 保存配置后即时生效。任何异常均降级为 error refinement，绝不抛出。
  */
 @Slf4j
 public class OpenAiCompatibleModelProvider implements ModelProvider {
@@ -36,17 +36,17 @@ public class OpenAiCompatibleModelProvider implements ModelProvider {
             "你是数据链路分析助手，负责润色数据链路识别引擎产出的草稿（候选单据、流程模板），"
             + "补充缺失的站点与连线、修正命名。只输出符合指定 JSON schema 的结果，不要输出任何多余文字。";
 
-    private final LlmProperties props;
+    private final LlmSettingsView view;
     private final RestClient restClient;
 
-    public OpenAiCompatibleModelProvider(LlmProperties props, RestClient.Builder builder) {
-        this.props = props;
+    public OpenAiCompatibleModelProvider(LlmSettingsView view, RestClient.Builder builder) {
+        this.view = view;
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(props.getTimeoutMs());
-        factory.setReadTimeout(props.getTimeoutMs());
-        this.restClient = builder
-                .baseUrl(props.getBaseUrl())
-                .defaultHeader("Authorization", "Bearer " + props.getApiKey())
+        factory.setConnectTimeout(view.getTimeoutMs());
+        factory.setReadTimeout(view.getTimeoutMs());
+        this.restClient = builder.clone()
+                .baseUrl(view.getBaseUrl())
+                .defaultHeader("Authorization", "Bearer " + view.getApiKey())
                 .requestFactory(factory)
                 .build();
     }
@@ -58,16 +58,16 @@ public class OpenAiCompatibleModelProvider implements ModelProvider {
 
     @Override
     public boolean available() {
-        return StringUtils.hasText(props.getApiKey());
+        return StringUtils.hasText(view.getApiKey());
     }
 
     @Override
     public LlmRefineResult refine(LlmRefineRequest req) {
         try {
             Map<String, Object> body = new LinkedHashMap<>();
-            body.put("model", props.getModel());
-            body.put("temperature", props.getTemperature());
-            body.put("max_tokens", props.getMaxTokens());
+            body.put("model", view.getModel());
+            body.put("temperature", view.getTemperature());
+            body.put("max_tokens", view.getMaxTokens());
             body.put("response_format", Map.of("type", "json_object"));
             body.put("messages", List.of(
                     Map.of("role", "system", "content", SYSTEM_PROMPT),

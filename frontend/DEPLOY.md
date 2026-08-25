@@ -11,13 +11,12 @@ npm run build
 # 产物在 frontend/dist/
 ```
 
-## 2. 环境变量
+## 2. 后端地址约定
 
-| 变量 | 说明 | 默认 |
-| --- | --- | --- |
-| `VITE_API_BASE_URL` | 后端 API 基础路径 | `/api`（经反向代理转发） |
+前端代码中 API 基址**硬编码为相对路径 `/api`**（同源经反向代理转发，无跨域问题）。切换后端只需改 nginx `proxy_pass` 目标，无需重新构建前端。
 
-构建时注入：`VITE_API_BASE_URL=/api npm run build`。前端代码中统一通过该变量拼接请求地址。
+- 开发环境：Vite 代理 `/api → http://localhost:28080`（`vite.config.ts`）。
+- 生产环境：nginx `location /api/` 反代到后端实际端口（见第 3 节）。
 
 ## 3. 方式一：nginx 部署（推荐）
 
@@ -43,9 +42,9 @@ server {
         add_header Cache-Control "public, immutable";
     }
 
-    # 反向代理后端 API
+    # 反向代理后端 API（后端默认监听 28080，见 backend/application.yml）
     location /api/ {
-        proxy_pass http://127.0.0.1:8080;
+        proxy_pass http://127.0.0.1:28080;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -54,7 +53,7 @@ server {
 }
 ```
 
-> 说明：`proxy_pass http://127.0.0.1:8080;`（不带 `/`）会保留 `/api` 前缀透传给后端。后端以 `/api/**` 为 Controller 前缀时即此写法；若后端不以 `/api` 为前缀，改为 `proxy_pass http://127.0.0.1:8080/;`。
+> 说明：`proxy_pass http://127.0.0.1:28080;`（不带 `/`）会保留 `/api` 前缀透传给后端。后端以 `/api/**` 为 Controller 前缀时即此写法；若后端不以 `/api` 为前缀，改为 `proxy_pass http://127.0.0.1:28080/;`。后端单机用 `--server.port` / `SERVER_PORT` 改过端口时，此处同步调整。
 
 ## 4. 方式二：Docker Compose（前后端一体化，推荐正式环境）
 
@@ -76,6 +75,8 @@ EXPOSE 80
 ```
 
 配套 `frontend/nginx.conf` 使用第 3 节的配置（静态 + API 反代 + SPA 回退）。
+
+> 端口对齐：`docker-compose.yml` 中 backend 服务设 `SERVER_PORT=8080`，与 nginx 反代目标 `backend:8080` 及宿主映射 `8080:8080` 一致。改动 compose 端口时需三处同步。
 
 ## 5. HTTPS
 

@@ -5,7 +5,8 @@ import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 /**
- * 跨域配置：允许前端开发服务器（Vite 5173）访问。
+ * 跨域配置：开发阶段放行任意 Origin（含 Vite 5173 / 局域网 IP / 机器名 / preview 端口）。
+ * 生产建议收紧为实际前端域名。
  */
 @Configuration
 public class CorsConfig implements WebMvcConfigurer {
@@ -13,7 +14,7 @@ public class CorsConfig implements WebMvcConfigurer {
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/**")
-                .allowedOriginPatterns("http://localhost:5173", "http://127.0.0.1:5173")
+                .allowedOriginPatterns("*")
                 .allowedMethods("*")
                 .allowedHeaders("*")
                 .allowCredentials(true)

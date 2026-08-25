@@ -12,13 +12,14 @@
  */
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import type {
-  CorrectionOperation, CorrectionPayload, CorrectionRecord, CorrectionTargetType,
-  EngineCandidate, EngineDraft, EngineFlow, EngineRefineResult, GraphEdge, GraphNode,
-  PatternPayload, RefinementItem,
+  AnalysisTask, ConnectorTestResult, CorrectionOperation, CorrectionPayload, CorrectionRecord, CorrectionTargetType,
+  DataSourceConnector, EngineCandidate, EngineDraft, EngineFlow, EngineRefineResult, GraphEdge,
+  GraphNode, LlmConfigInfo, PatternPayload, RefinementItem,
 } from '@/types';
 import {
-  fetchEngineAnalyze, fetchConnectors, postEngineRefine,
-  submitCorrection, listCorrections, confirmCorrection, createPattern,
+  activateLlmConfig, createPattern, confirmCorrection, fetchAnalyzeTask, fetchAnalyzeTasks,
+  fetchConnectors, fetchEngineAnalyzeBatch, fetchLlmConfig, fetchLlmConfigs, listCorrections,
+  postEngineRefineBatch, submitCorrection, testConnector, testLlmConfig,
 } from '@/api';
 import GraphCanvas from '@/components/GraphCanvas.vue';
 import Icon from '@/components/Icon.vue';
@@ -61,12 +62,86 @@ const ROUTES_META = [
   },
 ];
 
+/* —— 数据来源（DB 连接器，支持多选合并分析） —— */
+const sourceConnectors = ref<DataSourceConnector[]>([]);
+const selectedSourceIds = ref<string[]>([]);
+const sourceKeyword = ref('');
+/** 空输入时的默认预览条数（输入关键词后展示全部匹配） */
+const SOURCE_PREVIEW_COUNT = 8;
+const sourcePickerOpen = ref(false);
+const sourceTestingId = ref('');
+const sourceTestResults = ref<Record<string, ConnectorTestResult>>({});
+const sourceTestError = ref('');
+
 /* —— G3 真实引擎分析草稿 —— */
 const engineData = ref<EngineDraft | null>(null);
 const engineCandidates = ref<EngineCandidate[]>([]);
 const engineError = ref('');
 const engineConnectorName = ref('');
 const engineConnectorId = ref('');
+
+/* —— 大模型当前配置状态（cc-switch 式多配置切换 + 自动测速门禁） —— */
+const llmHasKey = ref(false);
+const llmConfigs = ref<LlmConfigInfo[]>([]);
+const llmSelectKey = ref('');
+const llmTesting = ref(false);
+const llmTestError = ref('');
+
+/** v-for key：env「默认配置」id 为 null，统一 'default' 防撞 */
+function llmKey(c: LlmConfigInfo): string {
+  return c.id != null ? String(c.id) : 'default';
+}
+
+function llmName(c: LlmConfigInfo): string {
+  return c.id != null ? (c.name || '未命名') : '默认配置（环境变量）';
+}
+
+async function loadLlmProvider() {
+  try {
+    const info = await fetchLlmConfig();
+    llmHasKey.value = info.hasKey;
+    llmConfigs.value = await fetchLlmConfigs();
+    const cur = llmConfigs.value.find((c) => c.isActive)
+      ?? llmConfigs.value.find((c) => c.source === 'env');
+    llmSelectKey.value = cur ? llmKey(cur) : '';
+  } catch {
+    llmConfigs.value = [];
+    llmSelectKey.value = '';
+  }
+}
+
+/** 切换「当前大模型」：先自动测速，失败不切换（回退原选择） */
+async function onLlmSelect() {
+  const target = llmConfigs.value.find((c) => llmKey(c) === llmSelectKey.value);
+  if (!target) return;
+  const cur = llmConfigs.value.find((c) => c.isActive);
+  if (cur && llmKey(cur) === llmKey(target)) return;   // 选的就是当前，跳过
+  llmTesting.value = true;
+  llmTestError.value = '';
+  try {
+    const r = await testLlmConfig(target.id);
+    if (!r.ok) {
+      llmTestError.value = `切换失败：${r.message || '连接测试未通过'}`;
+      llmSelectKey.value = cur ? llmKey(cur) : '';
+      return;
+    }
+    if (target.id != null) await activateLlmConfig(target.id);
+    await loadLlmProvider();
+    toast.value = `已切换当前大模型为「${llmName(target)}」`;
+  } catch (e) {
+    llmTestError.value = (e as Error).message || '切换失败';
+    llmSelectKey.value = cur ? llmKey(cur) : '';
+  } finally {
+    llmTesting.value = false;
+  }
+}
+
+/* —— 分析任务历史 —— */
+const tasks = ref<AnalysisTask[]>([]);
+const taskTotal = ref(0);
+const taskPage = ref(1);
+const taskSize = ref(8);
+const taskLoading = ref(false);
 
 /* —— G4 大模型细化结果 —— */
 const refineResult = ref<EngineRefineResult | null>(null);
@@ -111,20 +186,24 @@ function refineTypeLabel(t: string) {
 }
 
 /**
- * 引擎分析（G3 真实数据接入）：
- * 优先取已启用的 DB 连接器调用 /api/analyze；失败时展示错误空态，不再默认回退假数据。
+ * 引擎分析（G3 真实数据接入）：对已选来源调用 /api/analyze/batch。
+ * 单选 = 单来源，多选 = 合并分析；失败时展示错误空态，不回退假数据。
  */
 async function acquireEngineDraft() {
   engineError.value = '';
+  const ids = selectedSourceIds.value;
+  if (!ids.length) {
+    engineData.value = null;
+    engineCandidates.value = [];
+    engineError.value = '请先在入口选择数据来源';
+    return;
+  }
   try {
-    const { records } = await fetchConnectors(1, 50);
-    const dbConn = records.find((c) => c.connectorType === 'DB' && c.enabled === 1);
-    if (!dbConn) throw new Error('未找到已启用的 DB 连接器');
-    const draft = await fetchEngineAnalyze(dbConn.id);
+    const draft = await fetchEngineAnalyzeBatch(ids);
     engineData.value = draft;
     engineCandidates.value = draft.candidates ?? [];
-    engineConnectorName.value = dbConn.name;
-    engineConnectorId.value = dbConn.id;
+    engineConnectorName.value = sourceNames(ids);
+    engineConnectorId.value = String(ids[0]);
   } catch (err) {
     console.warn('[G3] 引擎分析调用失败：', err);
     engineData.value = null;
@@ -133,13 +212,25 @@ async function acquireEngineDraft() {
   }
 }
 
-function startRoute(key: RouteKey) {
-  routeKey.value = key;
-  confirmedBaseGraph.value = false;
+async function startRoute(key: RouteKey) {
   if (key === 'manual') {
+    routeKey.value = key;
     stage.value = 'manual';
     return;
   }
+  // 引擎/大模型分析都需要连库：开始前对选中来源做实时连接预检
+  const failed = await precheckSources();
+  if (failed.length) {
+    routeKey.value = null;
+    engineError.value = `以下来源连接失败，无法开始分析，请先在「数据接入」测试修复：${failed.join('、')}`;
+    return;
+  }
+  await refreshSourceStatus();
+  if (key === 'llm' && !llmHasKey.value) {
+    toast.value = '未启用大模型配置，细化将返回引擎原稿（可在侧边栏「大模型接入」配置）';
+  }
+  routeKey.value = key;
+  confirmedBaseGraph.value = false;
   stage.value = 'scanning';
   scanningText.value = SCANNING_TEXT[key];
   if (scanTimer !== null) window.clearTimeout(scanTimer);
@@ -154,13 +245,38 @@ function startRoute(key: RouteKey) {
   }, 1200);
 }
 
+/** 对选中的每个来源实时测试连接，返回连接失败的来源名列表 */
+async function precheckSources(): Promise<string[]> {
+  const failed: string[] = [];
+  for (const id of selectedSourceIds.value) {
+    const c = sourceConnectors.value.find((x) => x.id === id);
+    try {
+      const r = await testConnector(id);
+      if (!r.ok) failed.push(c?.name ?? id);
+    } catch {
+      failed.push(c?.name ?? id);
+    }
+  }
+  return failed;
+}
+
+/** 重新拉取连接器刷新状态点（保留已选，不重置） */
+async function refreshSourceStatus() {
+  try {
+    const { records } = await fetchConnectors(1, 50);
+    sourceConnectors.value = records.filter((c) => c.connectorType === 'DB' && c.enabled === 1);
+  } catch {
+    /* 静默：状态点保持原样 */
+  }
+}
+
 /** 大模型路线：先确保有引擎草稿，再调真实细化接口 */
 async function startLlmRoute() {
   if (engineData.value === null) {
     await acquireEngineDraft();
   }
-  if (!engineConnectorId.value) {
-    refineError.value = '未找到已启用的 DB 连接器，无法调用大模型细化';
+  if (!selectedSourceIds.value.length) {
+    refineError.value = '请先选择数据来源，无法调用大模型细化';
     stage.value = engineData.value ? 'draft' : 'entry';
     return;
   }
@@ -173,16 +289,17 @@ function goManual() {
   void refreshCorrectionHistory();
 }
 
-/** 主动分流 ②：草稿不够 → 加大模型细化（G4 真实接口） */
+/** 主动分流 ②：草稿不够 → 加大模型细化（G4 真实接口，单/多来源） */
 async function refineWithLlm() {
   refineError.value = '';
-  if (!engineConnectorId.value) {
-    refineError.value = '未找到已启用的 DB 连接器，无法调用大模型细化';
+  const ids = selectedSourceIds.value;
+  if (!ids.length) {
+    refineError.value = '请先选择数据来源，无法调用大模型细化';
     return;
   }
   refineLoading.value = true;
   try {
-    refineResult.value = await postEngineRefine(engineConnectorId.value);
+    refineResult.value = await postEngineRefineBatch(ids);
     stage.value = 'llm';
   } catch (err) {
     console.warn('[G4] 大模型细化调用失败：', err);
@@ -226,6 +343,8 @@ function resetAll() {
   renameInput.value = {};
   mergeInput.value = {};
   reorderInput.value = {};
+  // 保留来源选择；刷新任务列表
+  void refreshTasks();
 }
 
 /** 人工校正拍板：确认准底图 */
@@ -238,12 +357,183 @@ function confirmBaseGraph() {
 }
 
 onMounted(() => {
-  void acquireEngineDraft();
+  void loadSources();
+  void refreshTasks();
+  void loadLlmProvider();
 });
 
 onBeforeUnmount(() => {
   if (scanTimer !== null) window.clearTimeout(scanTimer);
 });
+
+/* —— 数据来源：加载 / 多选切换 —— */
+
+async function loadSources() {
+  try {
+    const { records } = await fetchConnectors(1, 50);
+    sourceConnectors.value = records.filter((c) => c.connectorType === 'DB' && c.enabled === 1);
+    // 不自动预选：所有来源均由带自动测速门禁的 picker 选择
+    selectedSourceIds.value = [];
+  } catch {
+    sourceConnectors.value = [];
+    selectedSourceIds.value = [];
+  }
+}
+
+/** 来源下拉列表：空输入展示默认前几条预览，有输入做模糊过滤（名称/库名/主机） */
+const filteredSources = computed<DataSourceConnector[]>(() => {
+  const kw = sourceKeyword.value.trim().toLowerCase();
+  if (!kw) return sourceConnectors.value.slice(0, SOURCE_PREVIEW_COUNT);
+  return sourceConnectors.value.filter((c) =>
+    (c.name || '').toLowerCase().includes(kw)
+    || (c.databaseName || '').toLowerCase().includes(kw)
+    || (c.host || '').toLowerCase().includes(kw));
+});
+
+/** 来源连接状态点：ok=上次测试成功 / fail=失败 / none=未测试 */
+function sourceStatus(c: DataSourceConnector): 'ok' | 'fail' | 'none' {
+  return c.lastTestStatus === 'OK' ? 'ok' : c.lastTestStatus === 'FAIL' ? 'fail' : 'none';
+}
+
+function sourceStatusText(c: DataSourceConnector): string {
+  return c.lastTestStatus === 'OK'
+    ? `上次测试通过 ${c.lastTestTime ?? ''}`
+    : c.lastTestStatus === 'FAIL' ? `上次测试失败 ${c.lastTestTime ?? ''}` : '未测试过，开始分析时会自动预检';
+}
+
+/** 已选来源中上次连接失败的 */
+const selectedFailed = computed(() =>
+  sourceConnectors.value.filter((c) => selectedSourceIds.value.includes(c.id) && c.lastTestStatus === 'FAIL'));
+
+/** 本地时间 yyyy-MM-ddTHH:mm:ss */
+function nowIso(): string {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
+/** dbType → tag 色调（mysql 蓝 / postgresql 青 / h2 灰） */
+function dbTypeTone(c?: DataSourceConnector): string {
+  if (!c) return 'tag--neutral';
+  const map: Record<string, string> = { mysql: 'tag--accent', postgresql: 'tag--info', h2: 'tag--neutral' };
+  return map[c.dbType ?? ''] ?? 'tag--neutral';
+}
+
+/** 选择来源：先实时测速（搜索列表状态可能不是最新），通过才加入选中；失败不选中并提示 */
+async function pickSource(c: DataSourceConnector) {
+  if (sourceTestingId.value === c.id) return;
+  if (selectedSourceIds.value.includes(c.id)) {
+    sourcePickerOpen.value = false;
+    return;
+  }
+  sourceTestingId.value = c.id;
+  sourceTestError.value = '';
+  try {
+    const r = await testConnector(c.id);
+    c.lastTestStatus = r.ok ? 'OK' : 'FAIL';
+    c.lastTestTime = nowIso();
+    if (r.ok) {
+      sourceTestResults.value[c.id] = r;
+      const set = new Set(selectedSourceIds.value);
+      set.add(c.id);
+      selectSource([...set]);          // 复用现有 selectSource → resetAll()（保留来源）+ refreshTasks()
+      // 下拉保持打开：方便连续多选，点外部才关闭
+    } else {
+      sourceTestError.value = `连接测试失败：${r.message || '无法连接'}`;
+    }
+  } catch (e) {
+    c.lastTestStatus = 'FAIL';
+    c.lastTestTime = nowIso();
+    sourceTestError.value = `连接测试失败：${(e as Error).message || '无法连接'}`;
+  } finally {
+    sourceTestingId.value = '';
+  }
+}
+
+/** 移除已选来源（不重测） */
+function removeSource(id: string) {
+  selectSource(selectedSourceIds.value.filter((x) => x !== id));
+}
+
+/** 失焦延迟关闭下拉：给行点击 120ms 落袋时间 */
+function closePicker() {
+  window.setTimeout(() => {
+    sourcePickerOpen.value = false;
+  }, 120);
+}
+
+/** 设置来源选择并重置草稿 */
+function selectSource(ids: string[]) {
+  selectedSourceIds.value = ids;
+  resetAll();
+}
+
+/** 来源名拼接（单选=名，多选=A + B） */
+function sourceNames(ids: string[]): string {
+  return ids
+    .map((id) => sourceConnectors.value.find((c) => c.id === id)?.name ?? String(id))
+    .join(' + ');
+}
+
+/* —— 分析任务历史 —— */
+
+async function refreshTasks() {
+  taskLoading.value = true;
+  try {
+    const filter = selectedSourceIds.value.length ? selectedSourceIds.value[0] : undefined;
+    const { records, total } = await fetchAnalyzeTasks(taskPage.value, taskSize.value, filter);
+    tasks.value = records;
+    taskTotal.value = total;
+  } catch {
+    tasks.value = [];
+    taskTotal.value = 0;
+  } finally {
+    taskLoading.value = false;
+  }
+}
+
+/** 查看历史任务：把草稿快照载入画布（ENGINE→draft / LLM→细化视图） */
+async function viewTask(rec: AnalysisTask) {
+  try {
+    const detail = await fetchAnalyzeTask(rec.id);
+    const snap = detail.draftSnapshot;
+    if (!snap) return;
+    // 同步来源选择到该任务来源
+    selectedSourceIds.value = (detail.connectorIds ?? String(detail.connectorId))
+      .split(',').map((s) => s.trim()).filter(Boolean);
+    engineConnectorName.value = detail.connectorName ?? '';
+    engineConnectorId.value = String(detail.connectorId);
+    if (rec.taskType === 'LLM' && 'base' in snap) {
+      engineData.value = snap.base;
+      refineResult.value = snap;
+      stage.value = 'llm';
+    } else {
+      engineData.value = snap as EngineDraft;
+      refineResult.value = null;
+      stage.value = 'draft';
+    }
+    engineCandidates.value = engineData.value?.candidates ?? [];
+    routeKey.value = rec.taskType === 'LLM' ? 'llm' : 'engine';
+  } catch (err) {
+    toast.value = err instanceof Error ? err.message : '加载任务失败';
+  }
+}
+
+/** 重跑历史任务：以该任务来源重新发起分析 */
+function rerunTask(rec: AnalysisTask) {
+  const ids = (rec.connectorIds ?? String(rec.connectorId))
+    .split(',').map((s) => s.trim()).filter(Boolean);
+  selectSource(ids.length ? ids : [String(rec.connectorId)]);
+  void startRoute(rec.taskType === 'LLM' ? 'llm' : 'engine');
+}
+
+function statusLabel(s: string): string {
+  return { RUNNING: '进行中', SUCCESS: '成功', FAILED: '失败' }[s] ?? s;
+}
+
+function statusClass(s: string): string {
+  return s === 'SUCCESS' ? 'tag--success' : s === 'FAILED' ? 'tag--danger' : 'tag--warning';
+}
 
 /* —— 派生数据 —— */
 const isDraftStage = computed(() => stage.value === 'draft' || stage.value === 'llm');
@@ -498,8 +788,98 @@ function stagedText(c: CorrectionPayload): string {
       </div>
     </div>
 
-    <!-- ═══ 入口：三条路线选择（15.2） ═══ -->
+    <!-- ═══ 入口：数据来源选择 + 三条路线选择 + 分析任务历史（15.2） ═══ -->
     <div v-if="stage === 'entry'" class="gs-body gs-body--entry">
+      <!-- 数据来源：搜索 + 紧凑列表 + 连接状态 + 选中摘要（单选=单来源，多选=合并分析） -->
+      <div class="gs-source-block">
+        <div class="gs-source-head">
+          <div class="gs-source-title"><Icon name="database" :size="15" /> 选择数据来源</div>
+          <div class="gs-source-hint">
+            已选 {{ selectedSourceIds.length }} 个 · 单选=单一分析，多选=合并分析
+            <router-link class="gs-source-link" to="/data-sources">管理来源</router-link>
+          </div>
+        </div>
+
+        <div v-if="!sourceConnectors.length" class="gs-source-empty">
+          暂无启用的 DB 连接器，请先到「<router-link class="gs-source-link" to="/data-sources">数据接入</router-link>」新建并启用。
+        </div>
+        <template v-else>
+          <div
+            class="gs-source-picker"
+            @focusin="sourcePickerOpen = true"
+            @focusout="closePicker"
+          >
+            <div class="gs-source-toolbar">
+              <div class="gs-source-search">
+                <Icon name="search" :size="14" />
+                <input v-model="sourceKeyword" class="input" placeholder="搜索名称 / 库名 / 主机" @focus="sourcePickerOpen = true" />
+              </div>
+              <span v-if="sourceKeyword.trim()" class="faint gs-source-filtered">
+                匹配 {{ filteredSources.length }} / {{ sourceConnectors.length }}
+              </span>
+              <span v-else-if="sourceConnectors.length > SOURCE_PREVIEW_COUNT" class="faint gs-source-filtered">
+                共 {{ sourceConnectors.length }} 个来源，已展示前 {{ SOURCE_PREVIEW_COUNT }} 条
+              </span>
+            </div>
+
+            <div v-if="sourcePickerOpen" class="gs-source-dropdown">
+              <div
+                v-for="c in filteredSources" :key="c.id"
+                class="gs-source-row" :class="{ 'gs-source-row--active': selectedSourceIds.includes(c.id) }"
+                @click="pickSource(c)"
+              >
+                <div class="gs-source-info">
+                  <div class="gs-source-name">
+                    {{ c.name }}
+                    <span v-if="c.isActive === 1" class="tag tag--accent gs-source-current">当前</span>
+                    <span v-if="selectedSourceIds.includes(c.id)" class="tag tag--success gs-source-current">已选</span>
+                  </div>
+                  <div class="gs-source-meta">
+                    {{ (c.dbType || 'db').toUpperCase() }} · {{ c.host || '本地' }}:{{ c.port || '-' }}/{{ c.databaseName || '-' }}
+                  </div>
+                </div>
+                <span v-if="sourceTestingId === c.id" class="faint gs-source-status">测试中…</span>
+                <span v-else class="gs-source-status" :title="sourceStatusText(c)">
+                  <span class="gs-source-dot" :class="'gs-source-dot--' + sourceStatus(c)" />
+                  {{ sourceStatus(c) === 'ok' ? '正常' : sourceStatus(c) === 'fail' ? '失败' : '未测' }}
+                </span>
+              </div>
+              <div v-if="!filteredSources.length" class="empty"><div class="empty-title">无匹配的来源</div></div>
+            </div>
+          </div>
+
+          <div v-if="sourceTestError" class="gs-source-warn">
+            <Icon name="alert" :size="13" />{{ sourceTestError }}
+          </div>
+
+          <div v-if="selectedSourceIds.length" class="gs-source-cards">
+            <div v-for="id in selectedSourceIds" :key="id" class="gs-source-card">
+              <div class="gs-source-card-main">
+                <div class="gs-source-card-name">{{ sourceConnectors.find((c) => c.id === id)?.name ?? id }}</div>
+                <span class="tag" :class="dbTypeTone(sourceConnectors.find((c) => c.id === id))">
+                  {{ (sourceConnectors.find((c) => c.id === id))?.dbType?.toUpperCase() || 'DB' }}
+                </span>
+                <span class="tag tag--success gs-source-card-ok">
+                  测试通过{{ sourceTestResults[id]?.latencyMs != null ? ` · ${sourceTestResults[id].latencyMs}ms` : '' }}
+                </span>
+              </div>
+              <button class="btn btn-xs btn-ghost gs-source-card-remove" title="移除" @click="removeSource(id)">×</button>
+            </div>
+            <span v-if="selectedSourceIds.length > 1" class="tag tag--info gs-source-merge">
+              合并分析（{{ selectedSourceIds.length }} 个来源）
+            </span>
+          </div>
+
+          <div v-if="selectedFailed.length" class="gs-source-warn">
+            <Icon name="alert" :size="13" />
+            以下已选来源上次连接失败，开始分析会被预检阻断：{{ selectedFailed.map((c) => c.name).join('、') }}
+          </div>
+          <div v-if="engineError && stage === 'entry'" class="gs-source-warn">
+            <Icon name="alert" :size="13" />{{ engineError }}
+          </div>
+        </template>
+      </div>
+
       <div class="gs-route-grid">
         <div
           v-for="r in ROUTES_META" :key="r.key"
@@ -512,6 +892,22 @@ function stagedText(c: CorrectionPayload): string {
           <div class="gs-route-name">{{ r.name }}</div>
           <div class="gs-route-desc">{{ r.desc }}</div>
           <div class="gs-route-material">{{ r.material }}</div>
+          <div v-if="r.key === 'llm'" class="gs-llm-state" :class="{ 'gs-llm-state--ok': llmHasKey }">
+            <Icon name="link" :size="12" />
+            <template v-if="llmConfigs.length">
+              <span class="gs-llm-label">当前大模型：</span>
+              <select v-model="llmSelectKey" class="gs-llm-select" :disabled="llmTesting" @change="onLlmSelect">
+                <option v-for="c in llmConfigs" :key="llmKey(c)" :value="llmKey(c)">{{ llmName(c) }}</option>
+              </select>
+              <span v-if="llmTesting" class="gs-llm-testing">测试中…</span>
+            </template>
+            <template v-else>
+              <span>未配置大模型 · 细化将返回引擎原稿</span>
+            </template>
+          </div>
+          <div v-if="r.key === 'llm' && llmTestError" class="gs-llm-error">
+            <Icon name="alert" :size="12" />{{ llmTestError }}
+          </div>
           <button class="btn btn-primary gs-route-btn" @click="startRoute(r.key)">开始{{ r.name }}</button>
         </div>
       </div>
@@ -520,6 +916,54 @@ function stagedText(c: CorrectionPayload): string {
         <div class="gs-flow-title"><Icon name="flow" :size="15" /> 出图流程</div>
         <div class="gs-flow-line">图来源入口 → 选路线 → 引擎出草稿 → 主动分流（够用 / 加大模型 / 作废重来）→ 人工校正（唯一拍板）→ 准底图</div>
         <div class="gs-flow-hint">原则：主动权在人不在系统——系统只清楚呈现草稿，不做自检/裁决。</div>
+      </div>
+
+      <!-- 分析任务历史：每次分析一条，可查看 / 重跑 -->
+      <div class="card gs-task-card">
+        <div class="card-header">
+          <div class="card-title">分析任务</div>
+          <span class="card-sub faint">每次对来源发起一次分析即一条任务，可查看草稿 / 重跑</span>
+        </div>
+        <div class="card-body">
+          <div v-if="taskLoading" class="empty"><div class="empty-title">加载中…</div></div>
+          <div v-else-if="!tasks.length" class="empty"><div class="empty-title">暂无分析任务</div></div>
+          <div v-else class="gs-task-table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>类型</th>
+                  <th>来源</th>
+                  <th>状态</th>
+                  <th>操作人</th>
+                  <th>创建时间</th>
+                  <th class="text-right">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="t in tasks" :key="t.id">
+                  <td>
+                    <span class="tag" :class="t.taskType === 'LLM' ? 'tag--info' : 'tag--accent'">
+                      {{ t.taskType === 'LLM' ? '大模型' : '引擎' }}
+                    </span>
+                  </td>
+                  <td class="cell-muted">{{ t.connectorName }}</td>
+                  <td><span class="tag" :class="statusClass(t.status)">{{ statusLabel(t.status) }}</span></td>
+                  <td class="cell-muted">{{ t.operator }}</td>
+                  <td class="cell-mono cell-muted">{{ t.createdAt }}</td>
+                  <td class="text-right">
+                    <button class="btn btn-xs btn-ghost" @click="viewTask(t)">查看</button>
+                    <button class="btn btn-xs btn-ghost" @click="rerunTask(t)">重跑</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div v-if="taskTotal > taskSize" class="gs-task-pager">
+            <button class="btn btn-xs btn-ghost" :disabled="taskPage <= 1" @click="taskPage--; refreshTasks()">上一页</button>
+            <span class="faint">第 {{ taskPage }} 页 · 共 {{ taskTotal }} 条</span>
+            <button class="btn btn-xs btn-ghost" :disabled="taskPage * taskSize >= taskTotal" @click="taskPage++; refreshTasks()">下一页</button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -862,6 +1306,13 @@ function stagedText(c: CorrectionPayload): string {
 .gs-route-desc { font-size: 12.5px; color: var(--fg-muted); line-height: 1.65; flex: 1; }
 .gs-route-material { font-size: 11.5px; color: var(--fg-faint); }
 .gs-route-btn { margin-top: 8px; align-self: flex-start; }
+.gs-llm-state {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11.5px; color: var(--warning, #f59e0b);
+  background: rgba(245, 158, 11, .08); border: 1px solid rgba(245, 158, 11, .25);
+  border-radius: var(--radius-sm); padding: 6px 9px; margin-top: 10px; line-height: 1.5;
+}
+.gs-llm-state--ok { color: var(--success); background: rgba(16, 185, 129, .08); border-color: rgba(16, 185, 129, .25); }
 
 .gs-flow-note {
   max-width: 1100px; margin: 28px auto 0; padding: 16px 20px;
@@ -871,6 +1322,93 @@ function stagedText(c: CorrectionPayload): string {
 .gs-flow-title { display: flex; align-items: center; gap: 6px; font-weight: 600; color: var(--fg); margin-bottom: 6px; }
 .gs-flow-line { line-height: 1.7; }
 .gs-flow-hint { margin-top: 6px; font-size: 12px; color: var(--fg-faint); }
+
+/* —— 入口：数据来源选择 —— */
+.gs-source-block { max-width: 1100px; margin: 0 auto 22px; }
+.gs-source-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+.gs-source-title { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700; }
+.gs-source-hint { font-size: 11.5px; color: var(--fg-faint); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.gs-source-link { color: var(--accent); text-decoration: none; }
+.gs-source-link:hover { text-decoration: underline; }
+.gs-source-empty { padding: 16px; border: 1px dashed var(--border-strong); border-radius: var(--radius); font-size: 12.5px; color: var(--fg-muted); }
+.gs-source-toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+.gs-source-search { display: flex; align-items: center; gap: 6px; flex: 1; max-width: 380px; }
+.gs-source-search .input { height: 32px; font-size: 12.5px; }
+.gs-source-search svg { color: var(--fg-faint); flex-shrink: 0; }
+.gs-source-filtered { font-size: 11.5px; }
+.gs-source-list {
+  max-height: 220px; overflow-y: auto;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+.gs-source-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 12px; cursor: pointer; transition: background .12s;
+  border-bottom: 1px solid var(--border);
+}
+.gs-source-row:last-child { border-bottom: none; }
+.gs-source-row:hover { background: var(--surface-2); }
+.gs-source-row--active { background: var(--accent-soft); }
+.gs-source-checkbox { font-size: 15px; color: var(--fg-muted); flex-shrink: 0; width: 16px; text-align: center; }
+.gs-source-row--active .gs-source-checkbox { color: var(--accent); }
+.gs-source-info { flex: 1; min-width: 0; }
+.gs-source-name { font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gs-source-current { height: 18px; font-size: 10px; padding: 0 6px; flex-shrink: 0; }
+.gs-source-meta { font-size: 11px; color: var(--fg-faint); font-family: var(--font-mono); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gs-source-status { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--fg-muted); flex-shrink: 0; }
+.gs-source-dot { width: 8px; height: 8px; border-radius: 50%; }
+.gs-source-dot--ok { background: var(--success); }
+.gs-source-dot--fail { background: var(--danger); }
+.gs-source-dot--none { background: var(--border-strong); }
+.gs-source-summary {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin-top: 10px; font-size: 12.5px; color: var(--fg-muted);
+}
+.gs-source-warn {
+  display: flex; align-items: center; gap: 6px;
+  margin-top: 8px; font-size: 12px; color: var(--danger);
+  background: var(--danger-soft); border: 1px solid rgba(244, 63, 94, .25);
+  border-radius: var(--radius-sm); padding: 7px 10px; line-height: 1.5;
+}
+
+/* —— 来源下拉 + 已选横向卡片 —— */
+.gs-source-picker { position: relative; }
+.gs-source-dropdown {
+  position: absolute; top: 38px; left: 0; right: 0; z-index: 30;
+  max-height: 240px; overflow-y: auto;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--surface); box-shadow: 0 4px 16px rgba(15, 23, 42, .12);
+}
+.gs-source-dropdown .gs-source-row { padding: 8px 12px; }
+.gs-source-dropdown .gs-source-row:last-child { border-bottom: none; }
+.gs-source-cards { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; align-items: center; }
+.gs-source-card {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--surface-2);
+}
+.gs-source-card-main { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.gs-source-card-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; }
+.gs-source-card-ok { height: 18px; font-size: 10.5px; padding: 0 7px; }
+.gs-source-card-remove { color: var(--fg-faint); font-size: 14px; padding: 0 6px; height: 22px; }
+.gs-source-card-remove:hover { color: var(--danger); }
+.gs-source-merge { height: 20px; font-size: 11px; }
+
+/* —— LLM 当前大模型选择器 —— */
+.gs-llm-label { white-space: nowrap; }
+.gs-llm-select {
+  height: 26px; padding: 0 6px; font-size: 12px; font-family: inherit;
+  border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+  background: var(--surface); color: var(--fg); max-width: 190px;
+}
+.gs-llm-testing { color: var(--fg-muted); white-space: nowrap; }
+.gs-llm-error { font-size: 11.5px; color: var(--danger); margin-top: 6px; display: flex; align-items: center; gap: 4px; }
+
+/* —— 入口：分析任务历史 —— */
+.gs-task-card { max-width: 1100px; margin: 22px auto 0; }
+.gs-task-table-wrap { overflow-x: auto; }
+.gs-task-pager { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 12px; font-size: 12px; }
+.btn-xs { height: 24px; padding: 0 8px; font-size: 11px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px; }
 
 /* —— 扫描动画 —— */
 .gs-scanning { display: flex; flex-direction: column; align-items: center; gap: 18px; }

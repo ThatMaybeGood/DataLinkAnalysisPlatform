@@ -7,9 +7,10 @@
    ============================================================ */
 
 import type {
-  AlertItem, CandidateNode, Checkpoint, ConnectorSavePayload, ConnectorTestResult, CorrectionPayload,
-  CorrectionRecord, DashboardStats, DataSourceConnector, EngineDraft, EngineRefineResult, GraphEdge,
-  GraphNode, HealthInfo, Instance, Level, LoginResult, Pattern, PatternPayload, ProcessDef, Route, TableInfo,
+  AlertItem, AnalysisTask, AnalysisTaskDetail, CandidateNode, Checkpoint, ConnectorSavePayload,
+  ConnectorTestResult, CorrectionPayload, CorrectionRecord, DashboardStats, DataSourceConnector,
+  EngineDraft, EngineRefineResult, GraphEdge, GraphNode, HealthInfo, Instance, Level, LlmConfigInfo,
+  LlmConfigSavePayload, LlmTestResult, LoginResult, Pattern, PatternPayload, ProcessDef, Route, TableInfo,
   TablePreview, Ticket, TicketPayload, VersionRecord,
 } from '@/types';
 
@@ -520,4 +521,103 @@ export async function createPattern(data: PatternPayload): Promise<Pattern> {
     body: JSON.stringify(data),
   });
   return unwrap<Pattern>(res);
+}
+
+// ============================================================
+// 图来源 · 多来源合并分析（G6：单来源也可用，connectorIds ≥1）
+// ============================================================
+
+/** 多来源合并引擎分析：逐个扫描后合并草稿（节点带来源标识；connectorIds 为前端字符串 id） */
+export async function fetchEngineAnalyzeBatch(connectorIds: string[]): Promise<EngineDraft> {
+  const res = await apiFetch('/api/analyze/batch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ connectorIds: connectorIds.map(Number) }),
+  });
+  return unwrap<EngineDraft>(res);
+}
+
+/** 多来源合并 + 大模型细化 */
+export async function postEngineRefineBatch(connectorIds: string[]): Promise<EngineRefineResult> {
+  const res = await apiFetch('/api/analyze/refine/batch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ connectorIds: connectorIds.map(Number) }),
+  });
+  return unwrap<EngineRefineResult>(res);
+}
+
+// ============================================================
+// 图来源 · 分析任务历史（V10：每次分析一条任务）
+// ============================================================
+
+/** 分析任务分页（connectorId 为空 = 全部；connectorId 为前端字符串 id） */
+export async function fetchAnalyzeTasks(
+  page = 1, size = 10, connectorId?: string,
+): Promise<{ records: AnalysisTask[]; total: number }> {
+  const qs = new URLSearchParams({ page: String(page), size: String(size) });
+  if (connectorId) qs.set('connectorId', connectorId);
+  const res = await apiFetch(`/api/analyze/tasks?${qs.toString()}`);
+  return unwrap<{ records: AnalysisTask[]; total: number }>(res);
+}
+
+/** 分析任务详情（含草稿快照，按 taskType 转型） */
+export async function fetchAnalyzeTask(id: number): Promise<AnalysisTaskDetail> {
+  const res = await apiFetch(`/api/analyze/tasks/${id}`);
+  return unwrap<AnalysisTaskDetail>(res);
+}
+
+// ============================================================
+// 大模型接入配置（/api/system/llm；读列表/测试/切换启用已放开到登录用户，新建编辑删除仅管理员）
+// ============================================================
+
+/** 当前生效配置（apiKey 只回掩码，source=env/db） */
+export async function fetchLlmConfig(): Promise<LlmConfigInfo> {
+  const res = await apiFetch('/api/system/llm');
+  return unwrap<LlmConfigInfo>(res);
+}
+
+/** 全部大模型配置列表（cc-switch 式切换用） */
+export async function fetchLlmConfigs(): Promise<LlmConfigInfo[]> {
+  const res = await apiFetch('/api/system/llm/list');
+  return unwrap<LlmConfigInfo[]>(res);
+}
+
+/** 新建配置（name 必填；首个自动启用） */
+export async function createLlmConfig(payload: LlmConfigSavePayload): Promise<LlmConfigInfo> {
+  const res = await apiFetch('/api/system/llm', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  return unwrap<LlmConfigInfo>(res);
+}
+
+/** 更新指定配置（apiKey 留空 = 不改），保存即生效 */
+export async function updateLlmConfig(id: number, payload: LlmConfigSavePayload): Promise<LlmConfigInfo> {
+  const res = await apiFetch(`/api/system/llm/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  return unwrap<LlmConfigInfo>(res);
+}
+
+/** 删除配置 */
+export async function deleteLlmConfig(id: number): Promise<void> {
+  const res = await apiFetch(`/api/system/llm/${id}`, { method: 'DELETE' });
+  await unwrap<void>(res);
+}
+
+/** 切换启用（目标置 1，其余置 0） */
+export async function activateLlmConfig(id: number): Promise<LlmConfigInfo> {
+  const res = await apiFetch(`/api/system/llm/${id}/activate`, { method: 'POST' });
+  return unwrap<LlmConfigInfo>(res);
+}
+
+/** 连通性测试（id 为空 → 内置「默认配置」env 兜底；不改变启用状态） */
+export async function testLlmConfig(id?: number): Promise<LlmTestResult> {
+  const path = id != null ? `/api/system/llm/${id}/test` : '/api/system/llm/default/test';
+  const res = await apiFetch(path, { method: 'POST' });
+  return unwrap<LlmTestResult>(res);
 }

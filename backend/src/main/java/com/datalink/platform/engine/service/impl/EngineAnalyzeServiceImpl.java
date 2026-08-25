@@ -12,6 +12,7 @@ import com.datalink.platform.engine.dto.EngineCandidateVO;
 import com.datalink.platform.engine.dto.EngineDraftVO;
 import com.datalink.platform.engine.dto.EngineFlowVO;
 import com.datalink.platform.engine.dto.RefineResultVO;
+import com.datalink.platform.engine.service.AnalysisTaskService;
 import com.datalink.platform.engine.service.EngineAnalyzeService;
 import com.datalink.platform.llm.dto.LlmRefineRequest;
 import com.datalink.platform.llm.dto.LlmRefineResult;
@@ -21,6 +22,7 @@ import com.datalink.platform.model.dto.EdgeVO;
 import com.datalink.platform.model.dto.NodeVO;
 import com.datalink.platform.model.entity.PatternLibrary;
 import com.datalink.platform.model.service.PatternLibraryService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -42,6 +44,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * 引擎分析实现：通用业务单据模式库识别（文档书 15.3）。
@@ -74,6 +77,8 @@ public class EngineAnalyzeServiceImpl implements EngineAnalyzeService {
     private final ConnectionPoolRegistry poolRegistry;
     private final ModelProvider modelProvider;
     private final PatternLibraryService patternLibraryService;
+    private final AnalysisTaskService analysisTaskService;
+    private final ObjectMapper objectMapper;
 
     /** 单列元信息 */
     private static class ColMeta {
@@ -104,6 +109,29 @@ public class EngineAnalyzeServiceImpl implements EngineAnalyzeService {
 
     @Override
     public EngineDraftVO analyze(Long connectorId) {
+        return analyzeBatch(List.of(connectorId));
+    }
+
+    @Override
+    public EngineDraftVO analyzeBatch(List<Long> connectorIds) {
+        if (connectorIds == null || connectorIds.isEmpty()) {
+            throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "至少需要一个数据来源");
+        }
+        String ids = connectorIds.stream().map(String::valueOf).collect(Collectors.joining(","));
+        Long taskId = analysisTaskService.start(connectorIds.get(0), ids, connectorNames(connectorIds), "ENGINE").getId();
+        try {
+            EngineDraftVO draft = analyzeBatchInternal(connectorIds);
+            draft.setRecordId(taskId);
+            analysisTaskService.finish(taskId, toJson(draft));
+            return draft;
+        } catch (Exception e) {
+            analysisTaskService.fail(taskId, shortMessage(e));
+            throw e;
+        }
+    }
+
+    /** 单来源扫描（不落任务，供合并分析复用） */
+    private EngineDraftVO analyzeInternal(Long connectorId) {
         Connector c = connectorMapper.selectById(connectorId);
         if (c == null || c.getConnectorType() == null || !"DB".equalsIgnoreCase(c.getConnectorType())) {
             throw new BusinessException(ResultCode.NOT_FOUND.getCode(), "DB 连接不存在: " + connectorId);
@@ -225,6 +253,112 @@ public class EngineAnalyzeServiceImpl implements EngineAnalyzeService {
     }
 
     /**
+     * 多来源合并引擎分析：对每个来源各自扫描后合并草稿。
+     * 节点 id 带来源标识（db-{connectorId} / t-{connectorId}-{表名}）防跨库同名表冲突；
+     * 候选/流程带库名区分；边重写 source/target。
+     */
+    private EngineDraftVO analyzeBatchInternal(List<Long> connectorIds) {
+        if (connectorIds.size() == 1) {
+            return analyzeInternal(connectorIds.get(0));
+        }
+        EngineDraftVO merged = new EngineDraftVO();
+        List<String> dbNames = new ArrayList<>();
+        int globalEdge = 0;
+        for (Long cid : connectorIds) {
+            EngineDraftVO draft = analyzeInternal(cid);
+            String db = draft.getDatabase() == null ? String.valueOf(cid) : draft.getDatabase();
+            dbNames.add(db);
+            String dbNodeId = "db-" + cid;
+
+            // 库节点
+            NodeVO dbNode = new NodeVO();
+            dbNode.setId(dbNodeId);
+            dbNode.setName(db);
+            dbNode.setCode(db);
+            dbNode.setNodeType("DATABASE");
+            dbNode.setLevel("L1");
+            dbNode.setStatus("ACTIVE");
+            dbNode.setDescription("扫描库 " + db);
+            merged.getDraftNodes().add(dbNode);
+
+            // 表节点：重写 id 为 t-{connectorId}-{表名}
+            Map<String, String> idMap = new LinkedHashMap<>();
+            for (NodeVO n : draft.getDraftNodes()) {
+                if ("DATABASE".equals(n.getNodeType())) {
+                    continue;
+                }
+                String newId = "t-" + cid + "-" + n.getCode();
+                idMap.put(n.getId(), newId);
+                NodeVO clone = new NodeVO();
+                clone.setId(newId);
+                clone.setName(n.getName());
+                clone.setCode(n.getCode());
+                clone.setNodeType(n.getNodeType());
+                clone.setLevel(n.getLevel());
+                clone.setStatus(n.getStatus());
+                clone.setDescription(n.getDescription());
+                merged.getDraftNodes().add(clone);
+            }
+
+            // 边：source/target 重写为合并后 id（指向库节点的边归一）
+            for (EdgeVO e : draft.getDraftEdges()) {
+                EdgeVO clone = new EdgeVO();
+                clone.setId("e" + (globalEdge++));
+                clone.setSource(idMap.getOrDefault(e.getSource(), dbNodeId));
+                clone.setTarget(idMap.getOrDefault(e.getTarget(), dbNodeId));
+                clone.setRelationType(e.getRelationType());
+                merged.getDraftEdges().add(clone);
+            }
+
+            // 候选：name 加库名后缀防同名混淆
+            for (EngineCandidateVO c : draft.getCandidates()) {
+                EngineCandidateVO clone = new EngineCandidateVO();
+                clone.setName(c.getName() + " · " + db);
+                clone.setTable(c.getTable());
+                clone.setConfidence(c.getConfidence());
+                clone.setLow(c.isLow());
+                clone.getMarks().addAll(c.getMarks());
+                clone.getStatusValues().addAll(c.getStatusValues());
+                merged.getCandidates().add(clone);
+            }
+
+            // 流程：name 加库前缀；nodeIds 重写为合并后 id
+            for (EngineFlowVO f : draft.getFlows()) {
+                EngineFlowVO clone = new EngineFlowVO();
+                clone.setName("[" + db + "] " + f.getName());
+                clone.setNodeIds(f.getNodeIds().stream()
+                        .map(id -> idMap.getOrDefault(id, id)).collect(Collectors.toList()));
+                clone.setTableNames(f.getTableNames());
+                merged.getFlows().add(clone);
+            }
+        }
+        merged.setDatabase(String.join(" + ", dbNames));
+        merged.setMessage("多来源合并分析：" + merged.getCandidates().size() + " 个候选单据，"
+                + merged.getDraftNodes().size() + " 节点");
+        return merged;
+    }
+
+    /** 来源名拼接（如「A + B + C」），用于任务快照 */
+    private String connectorNames(List<Long> connectorIds) {
+        List<String> names = new ArrayList<>();
+        for (Long id : connectorIds) {
+            Connector c = connectorMapper.selectById(id);
+            names.add(c != null && c.getName() != null ? c.getName() : String.valueOf(id));
+        }
+        return String.join(" + ", names);
+    }
+
+    /** 对象 → JSON 字符串（分析任务快照落库） */
+    private String toJson(Object o) {
+        try {
+            return objectMapper.writeValueAsString(o);
+        } catch (Exception e) {
+            log.warn("分析任务快照序列化失败: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    /**
      * G4 大模型细化：引擎骨架 → ModelProvider 增量细化。
      *
      * <p>降级策略：任何来自 modelProvider 的异常不向上抛——记录日志后返回
@@ -233,8 +367,30 @@ public class EngineAnalyzeServiceImpl implements EngineAnalyzeService {
      */
     @Override
     public RefineResultVO refine(Long connectorId) {
-        EngineDraftVO base = analyze(connectorId);
+        return refineBatch(List.of(connectorId));
+    }
 
+    @Override
+    public RefineResultVO refineBatch(List<Long> connectorIds) {
+        if (connectorIds == null || connectorIds.isEmpty()) {
+            throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "至少需要一个数据来源");
+        }
+        String ids = connectorIds.stream().map(String::valueOf).collect(Collectors.joining(","));
+        Long taskId = analysisTaskService.start(connectorIds.get(0), ids, connectorNames(connectorIds), "LLM").getId();
+        try {
+            EngineDraftVO base = analyzeBatchInternal(connectorIds);
+            RefineResultVO result = doRefine(base);
+            result.setRecordId(taskId);
+            analysisTaskService.finish(taskId, toJson(result));
+            return result;
+        } catch (Exception e) {
+            analysisTaskService.fail(taskId, shortMessage(e));
+            throw e;
+        }
+    }
+
+    /** 引擎骨架 + LLM 增量细化（含降级：大模型不可用/异常返回引擎原稿或 error 项） */
+    private RefineResultVO doRefine(EngineDraftVO base) {
         LlmRefineRequest req = LlmRefineRequest.builder()
                 .database(base.getDatabase())
                 .candidates(base.getCandidates())

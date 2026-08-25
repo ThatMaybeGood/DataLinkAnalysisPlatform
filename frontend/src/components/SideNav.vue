@@ -33,6 +33,7 @@ const menus = [
   { path: '/bigscreen', label: '大屏', icon: 'fullscreen' },
   { path: '/versions', label: '配置版本', icon: 'history' },
   { path: '/settings', label: '系统管理', icon: 'shield' },
+  { path: '/llm', label: '大模型接入', icon: 'link' },
 ];
 
 function isActive(path: string) {

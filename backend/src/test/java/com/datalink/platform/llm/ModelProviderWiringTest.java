@@ -3,7 +3,7 @@ package com.datalink.platform.llm;
 import com.datalink.platform.llm.dto.LlmRefineRequest;
 import com.datalink.platform.llm.dto.LlmRefineResult;
 import com.datalink.platform.llm.provider.ModelProvider;
-import com.datalink.platform.llm.provider.NoopModelProvider;
+import com.datalink.platform.llm.provider.RuntimeModelProvider;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -16,8 +16,8 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * G4 大模型接入层装配测试：默认环境无 LLM_API_KEY，
- * 上下文中应装配 NoopModelProvider 兜底直通。
+ * G4 大模型接入层装配测试：默认环境无 LLM_API_KEY 时，
+ * 上下文中装配唯一的 RuntimeModelProvider（运行时分发，无 Key 时内部走 Noop 兜底）。
  *
  * <p>应用库用独立内存 H2（datalink_llm_test，与其它测试类隔离缓存）。
  */
@@ -33,9 +33,10 @@ class ModelProviderWiringTest {
     private ModelProvider modelProvider;
 
     @Test
-    void noop_provider_wired_when_no_api_key() {
-        assertInstanceOf(NoopModelProvider.class, modelProvider,
-                "未配置 LLM_API_KEY 时应装配 NoopModelProvider");
+    void runtime_provider_wired_and_noop_when_no_api_key() {
+        assertInstanceOf(RuntimeModelProvider.class, modelProvider,
+                "G4 后装配运行时 RuntimeModelProvider，按当前配置分发");
+        // 无 Key：对外 name()=noop、available()=false，refine 内部走 Noop 兜底（见 noop_refine_passthrough）
         assertEquals("noop", modelProvider.name());
         assertFalse(modelProvider.available());
     }

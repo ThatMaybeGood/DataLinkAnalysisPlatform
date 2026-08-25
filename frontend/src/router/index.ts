@@ -27,6 +27,7 @@ const router = createRouter({
         { path: 'bigscreen', name: 'bigscreen', component: () => import('@/views/BigScreenView.vue'), meta: { title: '大屏' } },
         { path: 'versions', name: 'versions', component: () => import('@/views/VersionView.vue'), meta: { title: '配置版本' } },
         { path: 'settings', name: 'settings', component: () => import('@/views/SettingsView.vue'), meta: { title: '系统管理' } },
+        { path: 'llm', name: 'llm', component: () => import('@/views/LlmConfigView.vue'), meta: { title: '大模型接入' } },
       ],
     },
     { path: '/:pathMatch(.*)*', redirect: '/' },

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-/** 系统管理页：运行信息、开放 API、用户与角色、系统配置、数据权限说明 */
+/** 系统管理页：运行信息、开放 API、大模型接入入口、用户与角色、系统配置、数据权限说明 */
 import { onMounted, ref } from 'vue';
 import { fetchHealth, fetchOpenApiInfo } from '@/api';
 import type { HealthInfo } from '@/types';
@@ -296,6 +296,22 @@ function saveConfig() {
       </div>
     </div>
 
+    <!-- 大模型接入（已迁移至独立页面 /llm） -->
+    <div class="card mb-lg">
+      <div class="card-header">
+        <div class="card-title">大模型接入</div>
+        <span class="card-sub faint">OpenAI 兼容协议 · 多配置切换启用 · 已迁移至独立页面</span>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <span class="muted flex-1">大模型接入配置（cc-switch 式多配置 + 启动切换 + 内置默认配置）已迁移至独立页面。</span>
+          <router-link class="btn btn-outline btn-sm" to="/llm">
+            <Icon name="link" :size="13" />前往配置
+          </router-link>
+        </div>
+      </div>
+    </div>
+
     <!-- 数据权限说明 -->
     <div class="card">
       <div class="card-header">
@@ -361,6 +377,7 @@ function saveConfig() {
   display: inline-flex; align-items: center; gap: 5px;
   color: var(--success); font-size: 13px;
 }
+.mt-lg { margin-top: var(--space-lg); }
 
 .perm-item { gap: var(--space-md); padding: 10px 0; }
 .perm-item:last-child { padding-bottom: 0; }

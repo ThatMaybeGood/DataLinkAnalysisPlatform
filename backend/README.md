@@ -10,7 +10,7 @@
 | ORM | MyBatis-Plus 3.5.7 |
 | 数据库 | 离线本地模式：**嵌入式 H2**（零安装）｜ 部署模式：**MySQL 8** |
 | 数据库迁移 | Flyway（每数据库一套迁移目录，可扩展 Oracle/PG） |
-| 鉴权 | Spring Security + JWT（M0 阶段接口全放行，M1 收紧） |
+| 鉴权 | Spring Security + JWT + RBAC（ADMIN/MODELER/OPERATOR/ONCALL/VIEWER） |
 | API 文档 | springdoc-openapi（Swagger UI） |
 
 ## 快速开始（离线本地模式，默认）
@@ -22,10 +22,12 @@ cd backend
 mvn spring-boot:run
 ```
 
-- 后端地址：<http://localhost:8080>
-- 健康探活：<http://localhost:8080/api/health>
-- Swagger 文档：<http://localhost:8080/swagger-ui.html>
-- 本地数据：嵌入式 H2 文件库，保存在 `backend/.data/h2/`（已 git 忽略，重启不丢）
+- 后端地址：<http://localhost:28080>
+- 健康探活：<http://localhost:28080/api/health>
+- Swagger 文档：<http://localhost:28080/swagger-ui.html>
+- 本地数据：嵌入式 H2 文件库，保存在启动目录下 `.data/h2/`（已 git 忽略，重启不丢）
+
+> 端口说明：默认 `server.port=28080`（见 `application.yml`）。容器部署用 `SERVER_PORT=8080` 覆盖，与 nginx 反代对齐。
 
 内置管理员账号：`admin / admin123`（登录接口 `POST /api/auth/login`）。
 

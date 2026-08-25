@@ -25,4 +25,6 @@ public class EngineDraftVO {
     private List<EngineFlowVO> flows = new ArrayList<>();
     /** 汇总说明 */
     private String message;
+    /** 本次分析任务 id（V10 落库留痕） */
+    private Long recordId;
 }

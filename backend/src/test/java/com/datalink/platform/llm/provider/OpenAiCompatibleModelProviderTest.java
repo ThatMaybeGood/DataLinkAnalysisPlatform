@@ -1,7 +1,7 @@
 package com.datalink.platform.llm.provider;
 
-import com.datalink.platform.llm.config.LlmProperties;
 import com.datalink.platform.llm.dto.LlmRefineResult;
+import com.datalink.platform.llm.dto.LlmSettingsView;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.client.RestClient;
 
@@ -16,11 +16,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class OpenAiCompatibleModelProviderTest {
 
     private OpenAiCompatibleModelProvider newProvider() {
-        LlmProperties props = new LlmProperties();
-        props.setBaseUrl("https://api.deepseek.com/v1");
-        props.setApiKey("test-key");
-        props.setModel("deepseek-chat");
-        return new OpenAiCompatibleModelProvider(props, RestClient.builder());
+        LlmSettingsView view = LlmSettingsView.builder()
+                .baseUrl("https://api.deepseek.com/v1")
+                .apiKey("test-key")
+                .model("deepseek-chat")
+                .timeoutMs(30000)
+                .maxTokens(2048)
+                .temperature(0.2)
+                .build();
+        return new OpenAiCompatibleModelProvider(view, RestClient.builder());
     }
 
     @Test

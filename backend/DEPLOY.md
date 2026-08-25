@@ -29,17 +29,17 @@ mvn spring-boot:run
 
 | 入口 | 地址 |
 | --- | --- |
-| 健康探活 | <http://localhost:8080/api/health> |
-| Swagger API 文档 | <http://localhost:8080/swagger-ui.html> |
-| Spring Boot 管理端点 | <http://localhost:8080/actuator/health> |
+| 健康探活 | <http://localhost:28080/api/health> |
+| Swagger API 文档 | <http://localhost:28080/swagger-ui.html> |
+| Spring Boot 管理端点 | <http://localhost:28080/actuator/health> |
 
-- 本地数据文件保存在 `backend/.data/h2/datalink.mv.db`，**重启不丢**；删除该文件即重置数据。
-- 内置管理员：`admin / admin123`（登录 `POST /api/auth/login`）。
-- 离线模式当前启用 `permitAll`（接口全放行），便于前端联调；M1 阶段将按 RBAC 收紧。
+- 本地数据文件保存在**启动目录**下 `.data/h2/datalink.mv.db`，**重启不丢**；删除该文件即重置数据。
+- 内置账号：`admin / admin123`（全权 ADMIN+MODELER+OPERATOR）、`viewer / viewer123`（只读 VIEWER），登录 `POST /api/auth/login`。
+- **鉴权已启用（RBAC）**：除登录/健康/接口文档/开放 API 外，所有 `/api/**` 需 `Authorization: Bearer <token>`，写操作按角色收紧（见 4.4）。
 
 ### 1.1 前端联调
 
-前端 Vite 开发服务器已配置代理 `/api → http://localhost:8080`（见 `frontend/vite.config.ts`），
+前端 Vite 开发服务器已配置代理 `/api → http://localhost:28080`（见 `frontend/vite.config.ts`），
 先启动后端、再 `cd frontend && npm run dev` 即可前后端联调，前端无需改动。
 
 ---
@@ -80,7 +80,7 @@ java -jar target/datalink-backend-0.1.0.jar \
 | `DB_PASSWORD` | `datalink123` | 数据库密码（生产必改） |
 | `DATALINK_JWT_SECRET` | 开发默认串 | JWT 签名密钥，**必须 ≥32 字节随机串**，生产必改 |
 | `DATALINK_CRYPTO_KEY` | 开发默认串 | 数据池连接器密码 AES-GCM 加密密钥，**必须 16/24/32 字节**，生产必改 |
-| `SERVER_PORT` | 8080 | 服务端口（Spring 标准 `server.port`，可用 `SERVER_PORT` 覆盖） |
+| `SERVER_PORT` | 28080 | 服务端口（Spring 标准 `server.port`，可用 `SERVER_PORT` 覆盖；容器内设 8080 与反代对齐） |
 
 例：
 
@@ -111,22 +111,41 @@ docker compose up -d --build
 | 服务 | 地址 | 说明 |
 | --- | --- | --- |
 | 前端 | <http://localhost> | nginx 托管静态资源，`/api` 反代到 backend |
-| 后端 | <http://localhost:8080/api/health> | Spring Boot |
+| 后端 | <http://localhost:8080/api/health> | Spring Boot（容器内 `SERVER_PORT=8080`） |
 | MySQL | localhost:3306 | 数据卷 `mysql-data` 持久化 |
 
-生产必改项：`docker-compose.yml` 中的 `MYSQL_ROOT_PASSWORD`、`MYSQL_PASSWORD`、`DATALINK_JWT_SECRET`。
+生产必改项：`docker-compose.yml` 中的 `MYSQL_ROOT_PASSWORD`、`MYSQL_PASSWORD`、`DATALINK_JWT_SECRET`、`DATALINK_CRYPTO_KEY`、`DATALINK_OPENAPI_TOKEN`。
 
 ### 3.1 仅容器化后端
 
 ```bash
 docker build -t datalink-backend ./backend
 docker run -d -p 8080:8080 \
+  -e SERVER_PORT=8080 \
   -e SPRING_PROFILES_ACTIVE=mysql \
   -e DB_URL='jdbc:mysql://host:3306/datalink?...' \
   -e DB_USER=datalink -e DB_PASSWORD=xxx \
   -e DATALINK_JWT_SECRET=xxx \
+  -e DATALINK_CRYPTO_KEY=xxx \
   datalink-backend
 ```
+
+> 应用默认监听 28080（`application.yml`），容器内必须 `SERVER_PORT=8080` 才能与 `-p 8080:8080` 对应；若想用其它端口，将宿主映射与 `SERVER_PORT` 一起改。
+
+### 3.2 前端部署
+
+前端为纯静态资源（Vite 构建产物），由 nginx 托管并反代 `/api` 到后端：
+
+```bash
+cd frontend
+npm install
+npm run build        # 产物在 frontend/dist/
+```
+
+- **开发**：`npm run dev`（5173，代理 `/api → localhost:28080`）。
+- **生产**：将 `dist/` 拷到任意静态服务器；推荐直接使用仓库 `frontend/Dockerfile` + `frontend/nginx.conf`（已含 SPA 回退、静态缓存、`/api` 反代）。
+- **前端 API 基址**：代码中硬编码为相对路径 `/api`（同域反代，无需 CORS）；若要改后端地址，调整 nginx `proxy_pass` 即可。
+- 完整前端部署（含 HTTPS）见 `frontend/DEPLOY.md`。
 
 ---
 
@@ -245,6 +264,40 @@ POST /api/connectors/{id}/import      导入候选为 node（按 code 判重）
 ```
 创建方式：连接器 `connectorType=CMDB`，`config` 存 `{"apiUrl":"...","apiKey":"..."}`（CMDB 无需库名/密码）。前端表单暂未加 CMDB 类型，可用 API/Swagger 操作。
 
+### 4.6 图来源 · 多来源分析与分析任务（V9/V10）
+
+**多来源合并分析**：数据池每个 DB 连接器即一个引擎来源；图来源页支持单选（单来源）或多选（合并分析，节点 id 带 `db-{connectorId}` / `t-{connectorId}-{表名}` 前缀防跨库同名冲突）：
+
+```
+GET  /api/analyze?connectorId=              单来源引擎分析（保留，内部走 batch）
+POST /api/analyze/refine                    单来源大模型细化
+POST /api/analyze/batch                     多来源合并引擎分析 {connectorIds: [1,2]}
+POST /api/analyze/refine/batch              多来源合并 + 大模型细化
+GET  /api/analyze/tasks?page=&size=&connectorId=   分析任务分页（connectorId 空=全部）
+GET  /api/analyze/tasks/{id}                分析任务详情（含草稿快照 draftSnapshot）
+```
+
+每次分析自动落一条**分析任务**（表 `analysis_task`，ENGINE/LLM × RUNNING/SUCCESS/FAILED），
+强绑定来源（`connector_id` / `connector_ids`），前端可查看草稿快照 / 重跑。
+
+**大模型接入配置**（多配置 + 切换启用 cc-switch 式，保存即生效；新建/编辑/删除仅管理员，读取/测试/切换放开到登录用户）：
+
+```
+GET    /api/system/llm             当前生效配置（启用项，无则内置「默认配置」env 兜底；apiKey 只回掩码）
+GET    /api/system/llm/list        全部配置列表（无 DB 启用项时首条为内置「默认配置」）
+POST   /api/system/llm             新建配置（name 必填；首个自动启用）【仅管理员】
+PUT    /api/system/llm/{id}        更新指定配置（apiKey 留空=不改）【仅管理员】
+DELETE /api/system/llm/{id}        删除配置【仅管理员】
+POST   /api/system/llm/{id}/activate  切换启用（目标置 1，其余置 0）
+POST   /api/system/llm/{id}/test   连通性测试（最小 chat/completions ping，不改变启用状态）
+POST   /api/system/llm/default/test 连通性测试（内置「默认配置」env 兜底）
+```
+
+- 每行一个配置（`llm_config` 表多行，V11 迁移加 `name` / `is_active`），Key AES 加密存、绝不回传明文
+- 启用配置覆盖环境变量（`LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL`）逐字段 fallback；未配置/未启用任何 Key 时大模型细化自动降级 Noop（`provider="noop"`）
+- 内置「默认配置」（env 兜底）在无 DB 启用项时位于列表首位并作为当前生效，可被其它配置「启动」替换
+- 前端：侧边栏「大模型接入」独立页 `/llm`（当前大模型状态 + 配置列表 启动/测试/编辑/删除 + 新建表单）；图来源页大模型卡片为可切换下拉，**切换前自动测速、失败不切换**；图来源数据源选择**每次选中自动测速、失败不选中**（已选横向卡片并列）
+
 ---
 
 ## 5. 数据库备份与运维建议
@@ -268,11 +321,12 @@ mysql -udatalink -p datalink < datalink-2026-08-16.sql
 | 现象 | 处理 |
 | --- | --- |
 | `mvn spring-boot:run` 启动慢 | 首次需下载依赖，属正常；之后有本地缓存 |
-| 端口 8080 被占用 | 换端口：`--server.port=8081` 或环境变量 `SERVER_PORT` |
-| H2 文件被锁 | 确认没有残留后端进程，删除 `backend/.data/h2/*.lock` 后重试 |
+| 端口 28080 被占用 | 换端口：`--server.port=28081` 或环境变量 `SERVER_PORT` |
+| H2 文件被锁 | 确认没有残留后端进程，删除启动目录下 `.data/h2/*.lock` 后重试 |
+| 接口返回 `Invalid CORS request` | 跨域被后端拒绝。开发阶段 CORS 已放开任意 Origin（`CorsConfig`）；若改过该配置，确认前端 Origin 在允许名单内 |
+| 接口返回 401 `未认证或登录已过期` | 未带有效 token 或 token 过期（24h）。先 `POST /api/auth/login` 换 token，请求头带 `Authorization: Bearer <token>` |
 | MySQL 连接报 `Public Key Retrieval is not allowed` | URL 已带 `allowPublicKeyRetrieval=true`；如自建 URL 需保留该参数 |
 | Flyway 报 `Validate failed` | 表结构被手工改动过；回滚改动或按迁移规范新增脚本 |
-| CORS 跨域 | 开发环境前端 5173 已在白名单；如换端口，在 `CorsConfig` 补充 |
 | 未装 MySQL 又要体验 mysql profile | 用本仓库 `backend/scripts/start-mysql.sh` 启动项目本地 MySQL，或直接走 H2 本地模式 |
 
 ---

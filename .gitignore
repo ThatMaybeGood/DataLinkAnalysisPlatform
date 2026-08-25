@@ -43,6 +43,7 @@ secrets/
 *.tsbuildinfo
 .cache/
 tmp/
+out/
 
 # ---- 后端本地数据（H2 文件库 / 项目本地 MySQL）----
 backend/.data/

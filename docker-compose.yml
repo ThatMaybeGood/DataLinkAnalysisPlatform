@@ -37,10 +37,14 @@ services:
     container_name: datalink-backend
     environment:
       SPRING_PROFILES_ACTIVE: mysql
+      # 容器内监听 8080（与 nginx 反代 backend:8080 及端口映射 8080:8080 对齐；本地开发默认 28080）
+      SERVER_PORT: 8080
       DB_URL: jdbc:mysql://mysql:3306/datalink?useSSL=false&serverTimezone=Asia/Shanghai&characterEncoding=utf8&allowPublicKeyRetrieval=true
       DB_USER: datalink
       DB_PASSWORD: datalink123
       DATALINK_JWT_SECRET: change-me-in-production-0123456789abcdef
+      DATALINK_CRYPTO_KEY: change-me-32-byte-key-1234567890
+      DATALINK_OPENAPI_TOKEN: change-me-openapi-token
       TZ: Asia/Shanghai
     depends_on:
       mysql:

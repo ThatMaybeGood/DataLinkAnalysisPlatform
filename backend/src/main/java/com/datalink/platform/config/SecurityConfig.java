@@ -56,6 +56,9 @@ public class SecurityConfig {
                         // 告警/工单写操作：ADMIN / OPERATOR / ONCALL
                         .requestMatchers(HttpMethod.POST, "/api/alerts/**", "/api/tickets").hasAnyRole("ADMIN", "OPERATOR", "ONCALL")
                         .requestMatchers(HttpMethod.PUT, "/api/tickets/**", "/api/alerts/**").hasAnyRole("ADMIN", "OPERATOR", "ONCALL")
+                        // 大模型接入配置：当前配置/列表读取、连通性测试、切换启用 —— 登录即可（图来源页非管理员也要用）
+                        .requestMatchers(HttpMethod.GET, "/api/system/llm", "/api/system/llm/list").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/api/system/llm/*/test", "/api/system/llm/*/activate").authenticated()
                         // 系统信息（开放 API Token 等）：仅 ADMIN
                         .requestMatchers("/api/system/**").hasRole("ADMIN")
                         .anyRequest().authenticated())

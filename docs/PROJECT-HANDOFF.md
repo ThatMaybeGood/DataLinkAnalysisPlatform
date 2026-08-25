@@ -195,7 +195,20 @@
   - `CheckpointController`：新增 `POST /api/checkpoints/{id}/run`
 - **验证**：后端 `mvn test` 全绿；前端 `npm run type-check`/`npm run build` 全绿；浏览器走查实例/工单/流程/检测点/告警/版本/图来源页面通过；检测点创建+立即检测实测成功；LLM 未配置 key 仍走 Noop 兜底
 
-**远程仓库历史**（已推送，最新 11 条）：
+### 大模型接入独立页 + 图来源数据源选择器 + 当前大模型切换（✅ 完成，2026-08-25）
+- **后端**
+  - 新增 LLM 连通性测试：`POST /api/system/llm/{id}/test`（最小 chat/completions ping，`restClientBuilder.clone()` 防 Authorization 头累积）+ `POST /api/system/llm/default/test`（内置 env 兜底）；`LlmSettingsService.test(id)` 无 Key/BaseUrl/模型 快速失败，异常降级返回 `{ok, latencyMs, message}`，不写库、不改启用态
+  - `list()` 无 DB 启用项时 prepend 内置「默认配置」（env 兜底，isActive=true）；`envView()` 命名统一「默认配置」；一旦某 DB 配置被「启动」即从列表消失（切回默认 = 删除当前启用配置）
+  - SecurityConfig：`GET /api/system/llm`、`/list` 与 `POST /{id}/test`、`/default/test`、`/{id}/activate` 放开到登录用户（图来源非管理员也要切换当前大模型）；新建/编辑/删除仍 ADMIN
+  - 顺手修复两个预存 bug：①`LlmSettingsView.isActive` 被 Jackson 序列化为 `active`（boolean getter 命名）→ `@JsonProperty("isActive")` 对齐前端契约；②`OpenAiCompatibleModelProvider` 构造未 `.clone()` 导致每次 refine 追加 Authorization 头
+  - 测试：新增 `LlmSettingsServiceTest`（4 用例）；修正过时 `ModelProviderWiringTest`（G4 后装配 RuntimeModelProvider）；全量 **98 用例全绿** + curl 实测（默认配置首条 / 无 Key 快速失败 / 不可达地址真实 ping / 切换启用 / viewer 权限 / 清理后默认恢复）
+- **前端**
+  - 新页面 `LlmConfigView.vue`（侧边栏「大模型接入」`/llm`）：当前大模型状态卡 + 配置列表（每行 **启动**/测试/编辑/删除，内置「默认配置」不可编辑）+ 新建/编辑表单；系统管理页原大模型区块替换为「前往配置 → /llm」入口卡
+  - 图来源数据源选择器重做：搜索框 + 下拉（空输入默认前 8 条预览 + 模糊筛选）→ 选中 **实时自动测速、失败不选中** → 已选 **横向卡片**（名称/类型/测试通过·耗时/×移除，可连续多选）
+  - 图来源 LLM 卡片：静态文本改为可切换下拉，「当前大模型」**切换先自动测速、失败回退不切换**；`testLlmConfig` API + `LlmTestResult` 类型
+- 验证：后端 `mvn test` 全绿 + curl 实测；前端 `npm run type-check`/`npm run build` 全绿（含新页面分包）
+
+**远程仓库历史**（已推送，最新 12 条）：
 ```
 86b0b4d 图来源 G4 大模型接入层：ModelProvider 可插拔接口 + refine 细化接口 + 前端真实接线 + 文档同步 v1.7
 c2ff7e1 图来源 G3 引擎最小可行版完成：前端真实接线 + 文档同步 v1.6
@@ -216,12 +229,12 @@ ce7f5df 迁移 V7：演示数据修正（付款流程「结算部门」改名「
 
 ### 5.1 本地离线跑起来（最快）
 ```bash
-cd backend && mvn spring-boot:run        # 默认 local profile → 嵌入式 H2，无需任何数据库
-# 探活：curl http://localhost:8080/api/health
-# 文档：http://localhost:8080/swagger-ui.html
+cd backend && mvn spring-boot:run        # 默认 local profile → 嵌入式 H2，无需任何数据库（后端 28080）
+# 探活：curl http://localhost:28080/api/health
+# 文档：http://localhost:28080/swagger-ui.html
 # 登录：POST /api/auth/login  {"username":"admin","password":"admin123"}
 # 只读账号：viewer / viewer123（VIEWER 角色）；RBAC 已收紧（建模写=ADMIN/MODELER，告警工单=ADMIN/OPERATOR/ONCALL）
-# 前端联调：后端先起，再 cd frontend && npm run dev（vite 已代理 /api→8080；前端先到登录页）
+# 前端联调：后端先起，再 cd frontend && npm run dev（vite 已代理 /api→28080；前端先到登录页）
 ```
 
 ### 5.2 部署模式（MySQL 8）
@@ -279,5 +292,5 @@ M0~M4 全部里程碑（含 RBAC、M3 补充、M4 前端增强）与图来源 G1
 
 **当前任务 = M0~M4 + 图来源 G1~G5 全部完成**。后端 `mvn test` 全绿，前端 `npm run type-check`/`npm run build` 全绿，浏览器走查通过。
 新会话第一步：读本文档 → `cd backend && mvn spring-boot:run` 起服务 → 浏览器打开 http://localhost:5173 登录（admin/admin123）→ 依次查看 **图来源**（三条路线 + 引擎真实草稿 + 大模型细化 Noop 兜底 + 主动分流 + 人工校正 + **G5 校正面板**，G1~G5 已全链路）、**关系网画布**（2D/3D 切换、路线过滤、**三层视图切换 数据流/业务流/融合**）、**路径查询地铁图**、**3D 视图**、**大屏**、**实例**、**工单**。
-前端已完整可用：登录 + 图来源（G1~G5 全链路，真实引擎草稿 + 大模型细化接口 Noop 兜底 + 校正闭环）+ 关系网画布（排查/路径/影响面/2D⇄3D/路线过滤/**三层视图**）+ 地铁图 + 3D 视图 + 大屏 + 看板 + 告警 + 检测点 + 版本 + 数据接入（DB+CMDB）+ 系统管理（运行信息/开放 API 卡）+ 实例列表 + 工单列表。
+前端已完整可用：登录 + 图来源（G1~G5 全链路，真实引擎草稿 + 大模型细化接口 Noop 兜底 + 校正闭环 + **数据源选择器自动测速/横向卡片** + **当前大模型切换下拉**）+ 关系网画布（排查/路径/影响面/2D⇄3D/路线过滤/**三层视图**）+ 地铁图 + 3D 视图 + 大屏 + 看板 + 告警 + 检测点 + 版本 + 数据接入（DB+CMDB）+ **大模型接入（独立页 `/llm`，cc-switch 式多配置 + 启动/测试/编辑/删除）** + 系统管理（运行信息/开放 API 卡）+ 实例列表 + 工单列表。
 **G4/G5 起服务注意**：①旧后端进程若无 G3 种子（连接器表空），需重启 `spring-boot:run` 让 `DemoBizDbInitializer`（`@Order(10)`）+ `DemoConnectorSeeder`（`@Order(20)`）运行，HIS 连接器 id=1 才会出现；②无 `LLM_API_KEY` 时大模型细化走 Noop 兜底（返回引擎原稿 + 提示），配置 `LLM_API_KEY`/`LLM_BASE_URL`/`LLM_MODEL` 环境变量即切真实供应商（DeepSeek 默认）；③G5 校正记录与模式库表由 Flyway V8 自动创建。

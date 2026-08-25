@@ -203,6 +203,13 @@ export interface ConnectorTestResult {
   message?: string;                    // 失败原因
 }
 
+/** 大模型连通性测试结果（切换「当前大模型」前校验用） */
+export interface LlmTestResult {
+  ok: boolean;
+  latencyMs?: number;                  // 测试耗时（毫秒）
+  message?: string;                    // 失败原因
+}
+
 /** 库表信息 */
 export interface TableInfo {
   name: string;
@@ -263,6 +270,7 @@ export interface EngineDraft {
   draftEdges: GraphEdge[];             // 库→表 承载边 + 引用方向 DATA_FLOW 边
   flows: EngineFlow[];                 // 流程模板
   message?: string;
+  recordId?: number;                   // 本次分析任务 id
 }
 
 /** 大模型细化清单项（rename/chain/party/relation/flow + noop/error） */
@@ -280,6 +288,62 @@ export interface EngineRefineResult {
   refinements: RefinementItem[];       // 语义补全清单
   provider: string;                    // noop=未配置大模型 / error=调用异常
   message?: string;
+  recordId?: number;                   // 本次分析任务 id
+}
+
+// ============================================================
+// 图来源 · 分析任务（V10：每次对某来源发起一次分析即一条任务）
+// ============================================================
+
+/** 分析任务列表项 */
+export interface AnalysisTask {
+  id: number;
+  connectorId: number;                 // 首个来源连接器 id
+  connectorIds?: string;               // 多来源合并的全部来源 id（逗号分隔）
+  connectorName?: string;              // 来源名快照（多来源为「A + B」拼接）
+  taskType: 'ENGINE' | 'LLM';
+  status: 'RUNNING' | 'SUCCESS' | 'FAILED';
+  errorMessage?: string;
+  operator?: string;
+  createdAt?: string;
+  finishedAt?: string;
+}
+
+/** 分析任务详情（含草稿快照，按 taskType 转型：ENGINE→EngineDraft / LLM→EngineRefineResult） */
+export interface AnalysisTaskDetail extends AnalysisTask {
+  draftSnapshot?: EngineDraft | EngineRefineResult;
+}
+
+// ============================================================
+// 大模型接入配置（/api/system/llm）
+// ============================================================
+
+/** 生效配置视图 / 配置列表项（apiKey 不回传明文，只出掩码） */
+export interface LlmConfigInfo {
+  id?: number;                         // DB 配置才有
+  name?: string;                       // 配置名（DB 配置）/ 内置「默认配置」（env 兜底）
+  isActive?: boolean;                  // 是否当前启用（DB 配置）
+  baseUrl: string;
+  model: string;
+  timeoutMs: number;
+  maxTokens: number;
+  temperature: number;
+  apiKeyMasked: string;                // 未配置为空串
+  hasKey: boolean;
+  source: 'env' | 'db';                // env=环境变量 / db=数据库配置
+  updatedAt?: string;
+  updatedBy?: string;
+}
+
+/** 保存入参（新建 name 必填；apiKey 留空 = 不改） */
+export interface LlmConfigSavePayload {
+  name?: string;
+  baseUrl?: string;
+  apiKey?: string;
+  model?: string;
+  timeoutMs?: number;
+  maxTokens?: number;
+  temperature?: number;
 }
 
 /** 工单 */
